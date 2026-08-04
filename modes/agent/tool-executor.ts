@@ -309,6 +309,7 @@ export class ToolExecutor {
     });
     return `Shell queued: ${command}`;
   }
+
   skillRoots(): string[] {
     const extra =
       process.env.SKILLS_DIRS?.split(/[;]/)
