@@ -51,7 +51,7 @@ export async function runAgentMode() {
 
   const ok = await runApprovalFlow(tracker);
   if (!ok) return executor.clearStaging();
-  
+
   const { errors } = executor.applyApprovedFromTracker();
 
   if (errors.length) {
