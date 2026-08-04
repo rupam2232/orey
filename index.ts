@@ -13,4 +13,4 @@ program
     await runWakeup();
   });
 
-  await program.parseAsync(process.argv);
+await program.parseAsync(process.argv);
