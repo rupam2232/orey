@@ -17,11 +17,11 @@ export async function runTelegramMode() {
   console.log(chalk.green("Telegram bot is running. Press Ctrl+C to stop.\n"));
 
   await new Promise<void>((resolve) => {
-    const stop = () => {
-      bot.stop("SIGINT");
+    const stop = (signal: string) => {
+      bot.stop(signal);
       resolve();
     };
-    process.on("SIGINT", stop);
-    process.on("SIGTERM", stop);
+    process.once("SIGINT", ()=> stop("SIGINT"));
+    process.once("SIGTERM", ()=> stop("SIGTERM"));
   });
 }
