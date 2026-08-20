@@ -12,7 +12,7 @@ import { getAgentModel } from "../../ai/ai.config.ts";
 import { ActionTracker } from "../agent/action-tracker.ts";
 import { ToolExecutor } from "../agent/tool-executor.ts";
 import { defaultAgentConfig } from "../agent/types.ts";
-import type { Plan, PlanStep } from "./types.ts";
+import type { PlanStep } from "./types.ts";
 import { createWebTools } from "./web-tools.ts";
 
 const planSchema = z.object({

@@ -1,31 +1,33 @@
 {
   "name": "orey",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "bin": {
-    "orey": "./index.ts"
+    "orey": "./src/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/marked-terminal": "^6.1.1",
-    "@types/node": "^26.1.2"
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
-    "@clack/core": "^1.4.3",
-    "@clack/prompts": "^1.7.0",
     "@mendable/firecrawl-js": "^4.32.0",
     "@openrouter/ai-sdk-provider": "^3.0.0",
+    "@opentui/core": "^0.5.4",
+    "@opentui/react": "^0.5.4",
     "ai": "^7.0.44",
     "chalk": "^6.0.0",
-    "commander": "^15.0.0",
     "diff": "^9.0.0",
     "figlet": "^1.11.4",
     "marked": "^18.0.9",
     "marked-terminal": "^7.3.0",
+    "react": "^19.2.8",
+    "react-router": "^8.3.0",
     "telegraf": "^4.16.3"
   }
 }

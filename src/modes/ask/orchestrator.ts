@@ -116,7 +116,7 @@ export async function runAskMode() {
   const filename = await text({
     message:"Filename",
     initialValue:"ask.md",
-     validate: (v) => {
+    validate: (v) => {
       const s = (v ?? '').trim();
       if (!s) return 'Required';
       if (s.includes('..') || s.includes('/') || s.includes('\\')) return 'No paths';
