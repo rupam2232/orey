@@ -13,8 +13,15 @@ export function TextArea({
   minHeight = 6,
   width = 60,
   onSubmit,
+  ...props
 }: TextAreaProps) {
   const textareaRef = useRef<TextareaRenderable>(null);
+
+  function handleSubmit() {
+    const text = textareaRef.current?.plainText.trim() ?? "";
+    onSubmit(text);
+    textareaRef.current?.clear();
+  }
 
   return (
     <box alignItems="center" width="100%">
@@ -40,7 +47,8 @@ export function TextArea({
             { name: "return", shift: true, action: "newline" },
             { name: "enter", shift: true, action: "newline" },
           ]}
-          onSubmit={() => onSubmit(textareaRef.current?.plainText.trim() ?? "")}
+          onSubmit={handleSubmit}
+          {...props}
         />
       </box>
     </box>

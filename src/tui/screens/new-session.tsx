@@ -1,23 +1,24 @@
 import { useEffect, useMemo, useRef } from "react";
 import { z } from "zod";
 import { useNavigate, useLocation } from "react-router";
-import { modeSchema, sessionsFileSchema } from "../../types/schemas";
-import { randomUUID } from "node:crypto";
-import { ensureOreyBaseDirs, OREY_PATHS } from "../../constants/paths";
-import { readFileSync, writeFileSync } from "node:fs";
+import { modeSchema } from "@/types/schemas";
+import { createSessionRecord } from "@/lib/session-storage";
+import { SessionShell } from "../components/session-shell";
+import { UserMessage } from "../components/messages";
+import { useToast } from "../providers/toast";
 
 const newSessionStateSchema = z.object({
   message: z.string(),
   mode: modeSchema,
   model: z.string(),
-  cwd: z.string(),
+  cwd: z.string().optional().default(() => process.cwd()),
 });
 
 export function NewSession() {
   const navigate = useNavigate();
   const location = useLocation();
   const hasStartedRef = useRef(false);
-  const SESSIONS_FILE_PATH = OREY_PATHS.sessionsFile;
+  const toast = useToast();
 
   const state = useMemo(() => {
     const parsed = newSessionStateSchema.safeParse(location.state);
@@ -36,46 +37,44 @@ export function NewSession() {
     hasStartedRef.current = true;
 
     let ignore = false;
-    const createSession = async () => {
+    const initSession = () => {
       try {
         if (ignore) return;
-        const id = "orey-session-" + randomUUID();
-        const parsedSession = sessionsFileSchema.safeParse({
-          id,
-          goal: state.message,
-          cwd: state.cwd,
-        });
-        if (!parsedSession.success) {
-          throw new Error(
-            "Failed to create session: " + parsedSession.error.message,
-          );
-        }
-        ensureOreyBaseDirs();
-        const sessionsData = JSON.parse(
-          readFileSync(SESSIONS_FILE_PATH, "utf-8"),
-        );
+        const session = createSessionRecord(state.message, state.cwd);
 
-        sessionsData.push(parsedSession.data);
-        writeFileSync(
-          SESSIONS_FILE_PATH,
-          JSON.stringify(sessionsData, null, 2),
-        );
-        navigate(`/sessions/${parsedSession.data.id}`, {
+        navigate(`/sessions/${session.id}`, {
           replace: true,
-          state: { session: parsedSession.data, initialPrompt: state },
+          state: {
+            session,
+            initialPrompt: {
+              message: state.message,
+              mode: state.mode,
+              model: state.model,
+            },
+          },
         });
-      } catch (err) {
+      } catch (err: any) {
         if (ignore) return;
+        toast.show({
+          variant: "error",
+          message: err?.message || "Failed to create session",
+        });
         navigate("/", { replace: true });
       }
     };
-    createSession();
+
+    initSession();
+
     return () => {
       ignore = true;
     };
-  }, [state, navigate]);
+  }, [state, navigate, toast]);
 
   if (!state) return null;
 
-  return <></>;
+  return (
+    <SessionShell onSubmit={() => {}} inputDisabled loading>
+      <UserMessage message={state.message} mode={state.mode} />
+    </SessionShell>
+  );
 }
