@@ -14,6 +14,7 @@ import { usePromptConfig } from "../providers/prompt-config";
 import { useToast } from "../providers/toast";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { loadSession, type SessionData } from "@/lib/session-storage";
+import { ApprovalCard } from "../components/approval-card";
 
 const initialPromptSchema = z.object({
   message: z.string(),
@@ -65,10 +66,8 @@ function SessionChat({
   const [initialMessages] = useState<Message[]>(() => session.messages || []);
   const { model, mode } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
-  const { messages, status, submit, abort, interrupt, error } = useChat(
-    session.id,
-    initialMessages,
-  );
+  const { messages, status, submit, abort, interrupt, error, approval, resolveApproval } =
+    useChat(session.id, initialMessages);
   const hasSubmittedInitialPromptRef = useRef(false);
 
   useEffect(() => {
@@ -101,11 +100,18 @@ function SessionChat({
       }}
       loading={status === "submitted" || status === "streaming"}
       interruptible={status === "submitted" || status === "streaming"}
+      inputDisabled={approval != null}
     >
       {messages.map((msg) => (
         <ChatMessage key={msg.id} msg={msg} />
       ))}
       {error && <ErrorMessage message={error.message} />}
+      {approval && (
+        <ApprovalCard
+          pending={approval.pending}
+          onComplete={(ids) => resolveApproval(ids)}
+        />
+      )}
     </SessionShell>
   );
 }

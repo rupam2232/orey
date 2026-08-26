@@ -6,11 +6,17 @@ import type { ModeType, Message, MessagePart } from "@/types";
 import { ActionTracker } from "@/modes/agent/action-tracker";
 import { ToolExecutor } from "@/modes/agent/tool-executor";
 import { createAgentTools } from "@/modes/agent/agent-tools";
-import { defaultAgentConfig } from "@/modes/agent/types";
+import { defaultAgentConfig, type ActionLog } from "@/modes/agent/types";
 import { createWebTools } from "@/modes/plan/web-tools";
 import { loadSession, saveSession, type SessionData } from "@/lib/session-storage";
 
 export type ChatStatus = "ready" | "submitted" | "streaming" | "error";
+
+export type ApprovalRequest = {
+  tracker: ActionTracker;
+  executor: ToolExecutor;
+  pending: ActionLog[];
+};
 
 function buildSystemPrompt(mode: ModeType, cwd: string): string {
   const base = `Workspace root: ${cwd}\nToday's date: ${new Date().toLocaleDateString()}`;
@@ -60,9 +66,11 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [status, setStatus] = useState<ChatStatus>("ready");
   const [error, setError] = useState<Error | null>(null);
+  const [approval, setApproval] = useState<ApprovalRequest | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeSessionRef = useRef<SessionData | null>(null);
+  const approvalRef = useRef<ApprovalRequest | null>(null);
   const messagesRef = useRef<Message[]>(messages);
   messagesRef.current = messages;
 
@@ -114,6 +122,30 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
   const interrupt = useCallback(() => {
     abort();
   }, [abort]);
+
+  const resolveApproval = useCallback((approvedActionIds: string[]) => {
+    const request = approvalRef.current;
+    if (!request) return;
+
+    approvalRef.current = null;
+    setApproval(null);
+
+    const approvedSet = new Set(approvedActionIds);
+    for (const action of request.pending) {
+      request.tracker.updateStatus(
+        action.id,
+        approvedSet.has(action.id) ? "approved" : "rejected",
+        approvedSet.has(action.id),
+      );
+    }
+
+    const { errors } = request.executor.applyApprovedFromTracker();
+    request.executor.clearStaging();
+
+    if (errors.length) {
+      setError(new Error(errors.join("\n")));
+    }
+  }, []);
 
   const submit = useCallback(
     async (params: { userText: string; mode: ModeType; model: string }) => {
@@ -179,7 +211,7 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
 
         let currentAssistantParts: MessagePart[] = [];
 
-        for await (const part of result.fullStream) {
+        for await (const part of result.stream) {
           if (controller.signal.aborted) break;
 
           const partType = (part as { type: string }).type;
@@ -256,13 +288,15 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
           setMessages([...updatedMessagesWithUser, updatedAssistantMsg]);
         }
 
-        // Apply staged changes from tracker if in agent mode
+        // Stage changes for approval if in agent mode
         if (mode === "agent") {
-          for (const action of tracker.getPendingMutations()) {
-            tracker.updateStatus(action.id, "approved", true);
-          }
-          executor.applyApprovedFromTracker();
+          const pending = tracker.getPendingMutations();
           executor.clearStaging();
+          if (pending.length > 0) {
+            const request: ApprovalRequest = { tracker, executor, pending };
+            approvalRef.current = request;
+            setApproval(request);
+          }
         }
 
         const finalDurationMs = Date.now() - startTime;
@@ -317,5 +351,7 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
     submit,
     abort,
     interrupt,
+    approval,
+    resolveApproval,
   };
 }

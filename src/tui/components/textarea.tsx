@@ -5,6 +5,7 @@ interface TextAreaProps {
   initialValue?: string;
   minHeight?: number;
   width?: number;
+  focused?: boolean;
   onSubmit: (text: string) => void;
 }
 
@@ -12,6 +13,7 @@ export function TextArea({
   initialValue = "",
   minHeight = 6,
   width = 60,
+  focused = true,
   onSubmit,
   ...props
 }: TextAreaProps) {
@@ -35,7 +37,7 @@ export function TextArea({
         <textarea
           placeholder="Type your message here..."
           ref={textareaRef}
-          focused
+          focused={focused}
           width={width}
           height={minHeight}
           initialValue={initialValue}

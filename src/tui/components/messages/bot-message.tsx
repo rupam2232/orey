@@ -1,5 +1,6 @@
 import { TextAttributes } from "@opentui/core";
 import type { ModeType } from "../../../types";
+import { Markdown } from "../markdown";
 
 export type MessagePart =
   | { type: "text"; text: string }
@@ -131,7 +132,7 @@ export function BotMessage({
             if (part.type === "text") {
               return (
                 <box key={`text-${j}`} paddingX={2} width="100%">
-                  <text>{part.text}</text>
+                  <Markdown content={part.text} streaming={streaming} />
                 </box>
               );
             }
