@@ -1,5 +1,11 @@
 export type ModeType = "agent" | "plan" | "ask";
 
+export type ModeOption = {
+  id: ModeType;
+  name: string;
+  description: string;
+};
+
 export type MessagePart =
     | { type: "text"; text: string }
     | { type: "reasoning"; text: string }

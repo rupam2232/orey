@@ -1,47 +1,133 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
+import { TextAttributes, RGBA } from "@opentui/core";
+import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import { useKeyboardLayer } from "./keyboard-layer";
 
-interface Dialog {
-  id: string;
+export type DialogConfig = {
   title: string;
-  message: string;
-  type: "info" | "warning" | "error" | "confirm";
-  onConfirm?: () => void;
-}
-
-interface DialogContextType {
-  dialogs: Dialog[];
-  showDialog: (dialog: Omit<Dialog, "id">) => void;
-  closeDialog: (id: string) => void;
-}
-
-const DialogContext = createContext<DialogContextType | null>(null);
-
-export const useDialog = () => {
-  const ctx = useContext(DialogContext);
-  if (!ctx) throw new Error("useDialog must be used within DialogProvider");
-  return ctx;
+  children: ReactNode;
+  size?: "default" | "fullscreen";
 };
 
-export function DialogProvider({
-  children,
-}: {
+export type DialogContextValue = {
+  open: (config: DialogConfig) => void;
+  close: () => void;
+};
+
+const DialogContext = createContext<DialogContextValue | null>(null);
+
+export function useDialog(): DialogContextValue {
+  const value = useContext(DialogContext);
+  if (!value) {
+    throw new Error("useDialog must be used within a DialogProvider");
+  }
+  return value;
+}
+
+type DialogProviderProps = {
   children: ReactNode;
-}): ReactNode {
-  const [dialogs, setDialogs] = useState<Dialog[]>([]);
+};
 
-  const showDialog = useCallback((dialog: Omit<Dialog, "id">) => {
-    const id = Math.random().toString(36).slice(2);
-    setDialogs((prev) => [...prev, { ...dialog, id }]);
-  }, []);
+export function DialogProvider({ children }: DialogProviderProps) {
+  const [currentDialog, setCurrentDialog] = useState<DialogConfig | null>(null);
+  const { push, pop } = useKeyboardLayer();
 
-  const closeDialog = useCallback((id: string) => {
-    setDialogs((prev) => prev.filter((d) => d.id !== id));
-  }, []);
+  const close = useCallback(() => {
+    setCurrentDialog(null);
+    pop("dialog");
+  }, [pop]);
+
+  const open = useCallback(
+    (config: DialogConfig) => {
+      setCurrentDialog(config);
+      push("dialog", () => {
+        close();
+        return true;
+      });
+    },
+    [push, close],
+  );
+
+  const value: DialogContextValue = {
+    open,
+    close,
+  };
 
   return (
-    <DialogContext.Provider value={{ dialogs, showDialog, closeDialog }}>
+    <DialogContext.Provider value={value}>
       {children}
+      <Dialog currentDialog={currentDialog} close={close} />
     </DialogContext.Provider>
+  );
+}
+
+type DialogProps = {
+  currentDialog: DialogConfig | null;
+  close: () => void;
+};
+
+function Dialog({ currentDialog, close }: DialogProps) {
+  const { isTopLayer } = useKeyboardLayer();
+  const dimensions = useTerminalDimensions();
+
+  useKeyboard((key) => {
+    if (!currentDialog || !isTopLayer("dialog")) return;
+
+    if (key.name === "escape") {
+      close();
+    }
+  });
+
+  if (!currentDialog) {
+    return null;
+  }
+
+  const { title, children, size = "default" } = currentDialog;
+  const fullscreen = size === "fullscreen";
+
+  return (
+    <box
+      position="absolute"
+      left={0}
+      top={0}
+      width={dimensions.width}
+      height={dimensions.height}
+      justifyContent="center"
+      alignItems="center"
+      backgroundColor={RGBA.fromInts(0, 0, 0, 160)}
+      zIndex={100}
+      onMouseDown={() => close()}
+    >
+      <box
+        width={
+          fullscreen
+            ? Math.max(20, dimensions.width - 2)
+            : Math.min(64, dimensions.width - 4)
+        }
+        height={fullscreen ? Math.max(10, dimensions.height - 2) : "auto"}
+        paddingX={fullscreen ? 2 : 4}
+        paddingY={1}
+        flexDirection="column"
+        gap={1}
+        onMouseDown={(e) => e.stopPropagation()}
+        backgroundColor="#1d1d1d"
+      >
+        <box
+          paddingBottom={1}
+          flexDirection="row"
+          alignItems="center"
+          justifyContent="space-between"
+        >
+          <text attributes={TextAttributes.BOLD}>{title}</text>
+          <text attributes={TextAttributes.DIM} onMouseDown={() => close()}>
+            esc
+          </text>
+        </box>
+        <box flexGrow={1} minHeight={0}>
+          {children}
+        </box>
+      </box>
+    </box>
   );
 }

@@ -9,15 +9,15 @@ import { ToastProvider } from "../providers/toast";
 export function RootLayout(): ReactNode {
   return (
     <ThemeProvider>
-      <DialogProvider>
-        <PromptConfigProvider>
-          <KeyboardLayerProvider>
+      <KeyboardLayerProvider>
+        <DialogProvider>
+          <PromptConfigProvider>
             <ToastProvider>
               <Outlet />
             </ToastProvider>
-          </KeyboardLayerProvider>
-        </PromptConfigProvider>
-      </DialogProvider>
+          </PromptConfigProvider>
+        </DialogProvider>
+      </KeyboardLayerProvider>
     </ThemeProvider>
   );
 }

@@ -39,7 +39,7 @@ export function SessionShell({
         <box>{cleanChildren}</box>
       </scrollbox>
       <box flexShrink={0}>
-        <TextArea onSubmit={onSubmit} focused={!inputDisabled} />
+        <TextArea onSubmit={onSubmit} disabled={inputDisabled} />
       </box>
       <box
         flexShrink={0}
