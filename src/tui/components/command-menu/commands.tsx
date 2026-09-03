@@ -1,6 +1,7 @@
 import type { Command } from "@/types/command";
 import {
   AgentsDialogContent,
+  ModelsDialogContent,
   SessionsDialogContent,
 } from "../dialogs";
 
@@ -26,6 +27,18 @@ export const COMMANDS: Command[] = [
             onSelectMode={ctx.setMode}
           />
         ),
+      });
+    },
+  },
+  {
+    name: "models",
+    description: "Choose a model (provider + api key)",
+    value: "/models",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "Select Model",
+        children: <ModelsDialogContent onSelectModel={() => {}} />,
+        size: "fullscreen",
       });
     },
   },

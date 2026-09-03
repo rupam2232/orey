@@ -1,1 +1,1 @@
-export { getAgentModel } from "./ai.config";
+export { resolveModel } from "./ai.config";

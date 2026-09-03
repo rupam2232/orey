@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { randomUUID } from "node:crypto";
 import { stepCountIs, streamText } from "ai";
-import { getAgentModel } from "@/ai/ai.config";
+import { usePromptConfig } from "@/tui/providers/prompt-config";
 import type { ModeType, Message, MessagePart } from "@/types";
 import { ActionTracker } from "@/modes/agent/action-tracker";
 import { ToolExecutor } from "@/modes/agent/tool-executor";
@@ -67,6 +67,11 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
   const [status, setStatus] = useState<ChatStatus>("ready");
   const [error, setError] = useState<Error | null>(null);
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
+  const { aiModel, aiModelError } = usePromptConfig();
+  const aiModelRef = useRef(aiModel);
+  const aiModelErrorRef = useRef(aiModelError);
+  aiModelRef.current = aiModel;
+  aiModelErrorRef.current = aiModelError;
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeSessionRef = useRef<SessionData | null>(null);
@@ -197,11 +202,20 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
       };
 
       try {
-        const aiModel = getAgentModel();
+        const currentModel = aiModelRef.current;
+        const currentError = aiModelErrorRef.current;
+        if (currentError) {
+          throw new Error(currentError);
+        }
+        if (!currentModel) {
+          throw new Error(
+            "No provider selected. Use /models to choose a provider and model.",
+          );
+        }
         const formattedMessages = convertMessagesForStream(updatedMessagesWithUser);
 
         const result = streamText({
-          model: aiModel,
+          model: currentModel,
           system: buildSystemPrompt(mode, process.cwd()),
           messages: formattedMessages,
           tools,

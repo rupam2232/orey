@@ -1,20 +1,8 @@
 import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
-import { readFileSync, writeFileSync } from "node:fs";
-import { OREY_PATHS, ensureOreyBaseDirs } from "../../constants/paths";
+import { readConfig, writeConfig, type ThemeColors } from "@/lib/config";
 
-export type Colors = {
-  primary: string;
-  secondary: string;
-  success: string;
-  error: string;
-  background: string;
-  surface: string;
-};
-
-const THEME_FILE_PATH = OREY_PATHS.configFile;
-
-const DEFAULT_COLORS: Colors = {
+const DEFAULT_COLORS: ThemeColors = {
   primary: "#00ff00",
   secondary: "#0088ff",
   success: "#00ff00",
@@ -24,8 +12,8 @@ const DEFAULT_COLORS: Colors = {
 };
 
 interface ThemeContextType {
-  colors: Colors;
-  setColors: (colors: Colors) => void;
+  colors: ThemeColors;
+  setColors: (colors: ThemeColors) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
@@ -41,23 +29,15 @@ export function ThemeProvider({
 }: {
   children: ReactNode;
 }): ReactNode {
-  const [colors, setColorsState] = useState<Colors>(() => {
-    try {
-      const saved = JSON.parse(readFileSync(THEME_FILE_PATH, "utf-8"));
-      return saved;
-    } catch {
-      return DEFAULT_COLORS;
-    }
+  const [colors, setColorsState] = useState<ThemeColors>(() => {
+    return readConfig().theme ?? DEFAULT_COLORS;
   });
 
-  const setColors = useCallback((newColors: Colors) => {
+  const setColors = useCallback((newColors: ThemeColors) => {
     setColorsState(newColors);
-    try {
-      ensureOreyBaseDirs();
-      writeFileSync(THEME_FILE_PATH, JSON.stringify(newColors, null, 2));
-    } catch (e) {
-      // Silently fail - theme still works for this session
-    }
+    const config = readConfig();
+    config.theme = newColors;
+    writeConfig(config);
   }, []);
 
   return (
