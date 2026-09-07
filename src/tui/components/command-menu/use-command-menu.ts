@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
-import { useKeyboardLayer } from "../../providers/keyboard-layer";
+import { useKeyboardLayer } from "@/tui/providers/keyboard-layer";
 import { filterCommands } from "./filter-commands";
 import type { Command } from "@/types/command";
 

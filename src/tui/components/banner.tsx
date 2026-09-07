@@ -1,9 +1,8 @@
-import { TextAttributes } from "@opentui/core";
-import figlet from "figlet";
+import type { AsciiFontProps } from "@opentui/react";
 
 interface BannerProps {
   text: string;
-  font?: string;
+  font?: AsciiFontProps["font"];
   maxWidth?: number;
   shadowColor?: string;
   faceColor?: string;
@@ -11,35 +10,17 @@ interface BannerProps {
 
 export const Banner = ({
   text,
-  font = "ANSI Shadow",
+  font: asciiFont = "block",
   maxWidth = 80,
-  shadowColor = "#5b4d9e",
+  shadowColor = "#b5ace1",
   faceColor = "#e8dcf8",
   ...props
 }: BannerProps) => {
-  let ascii: string;
-  try {
-    ascii = figlet.textSync(text, { font, width: maxWidth });
-  } catch {
-    ascii = figlet.textSync(text, { font: "Standard", width: maxWidth });
-  }
-
-  const lines = ascii
-    .replace(/\s+$/, "")
-    .split("\n")
-    .filter((line) => line.trim());
 
   return (
-    <box flexDirection="column" height={lines.length + 2} {...props}>
-      {lines.map((line, index) => (
-        <text
-          key={`face-${index}`}
-          fg={faceColor}
-          attributes={TextAttributes.BOLD}
-        >
-          {line}
-        </text>
-      ))}
+    <box flexDirection="column" paddingBottom={2} {...props}>
+      <ascii-font text={text} font={asciiFont} color={faceColor} zIndex={1} />
+      <ascii-font text={text} font={asciiFont} color={shadowColor} position="absolute" left={1} top={1} zIndex={0} />
     </box>
   );
 };

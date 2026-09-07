@@ -35,7 +35,7 @@ const sessionLocationSchema = z.object({
   initialPrompt: initialPromptSchema.optional(),
 });
 
-function ChatMessage({ msg }: { msg: Message }) {
+function ChatMessage({ msg, isStreaming }: { msg: Message; isStreaming: boolean }) {
   if (msg.role === "user") {
     const text = msg.parts
       .filter((p: MessagePart) => p.type === "text")
@@ -51,7 +51,7 @@ function ChatMessage({ msg }: { msg: Message }) {
       model={msg.metadata?.model ?? "unknown"}
       mode={msg.metadata?.mode ?? "agent"}
       durationMs={msg.metadata?.durationMs}
-      streaming={false}
+      streaming={isStreaming}
     />
   );
 }
@@ -103,7 +103,7 @@ function SessionChat({
       inputDisabled={approval != null}
     >
       {messages.map((msg) => (
-        <ChatMessage key={msg.id} msg={msg} />
+        <ChatMessage key={msg.id} msg={msg} isStreaming={status === "streaming"} />
       ))}
       {error && <ErrorMessage message={error.message} />}
       {approval && (

@@ -8,19 +8,19 @@ import {
 export const COMMANDS: Command[] = [
   {
     name: "new",
-    description: "Start a new conversation",
+    description: "Start a new session",
     value: "/new",
     action: (ctx) => {
       ctx.navigate("/");
     },
   },
   {
-    name: "agents",
-    description: "Switch agent/mode",
-    value: "/agents",
+    name: "modes",
+    description: "Switch modes",
+    value: "/modes",
     action: (ctx) => {
       ctx.dialog.open({
-        title: "Select Agent",
+        title: "Select Mode",
         children: (
           <AgentsDialogContent
             currentMode={ctx.mode}
@@ -38,7 +38,6 @@ export const COMMANDS: Command[] = [
       ctx.dialog.open({
         title: "Select Model",
         children: <ModelsDialogContent onSelectModel={() => {}} />,
-        size: "fullscreen",
       });
     },
   },

@@ -3,6 +3,7 @@ import { Banner } from "../components/banner";
 import { TextArea } from "../components/textarea";
 import { useNavigate } from "react-router";
 import { usePromptConfig } from "../providers/prompt-config";
+import { TextAttributes } from "@opentui/core";
 
 export const Home = () => {
   const navigate = useNavigate();
@@ -36,6 +37,14 @@ export const Home = () => {
       <Banner text="orey" />
       <box width="100%" maxWidth={80}>
         <TextArea onSubmit={handleSubmit} />
+      </box>
+      <box
+        width="100%"
+        position="absolute"
+        bottom={0.5}
+        paddingLeft={2}
+      >
+        <text attributes={TextAttributes.DIM}>{process.cwd()}</text>
       </box>
     </box>
   );
