@@ -2,11 +2,11 @@ import { useMemo, useState } from "react";
 import { TextAttributes } from "@opentui/core";
 import type { SelectOption } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
-import type { ActionLog } from "@/modes/agent/types";
+import type { ActionLog } from "@/ai/types";
 import {
   groupPendingActions,
   type ReviewGroup,
-} from "@/modes/agent/diff-view";
+} from "@/utils/diff-view";
 
 type Props = {
   pending: ActionLog[];

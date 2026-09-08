@@ -11,7 +11,7 @@ import type {
   LanguageModelLike,
   ProviderId,
 } from "@/ai/providers/types";
-import { resolveModel } from "@/ai/ai.config";
+import { resolveModel } from "@/ai/config";
 import { MODES as MODESCONST } from "@/constants/modes";
 import { getProviderConfig } from "@/lib/config";
 

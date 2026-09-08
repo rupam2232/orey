@@ -21,10 +21,8 @@
     "@opentui/core": "^0.5.4",
     "@opentui/react": "^0.5.4",
     "ai": "^7.0.44",
-    "chalk": "^6.0.0",
     "diff": "^9.0.0",
     "react": "^19.2.8",
-    "react-router": "^8.3.0",
-    "telegraf": "^4.16.3"
+    "react-router": "^8.3.0"
   }
 }

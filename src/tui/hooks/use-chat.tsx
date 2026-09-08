@@ -3,11 +3,10 @@ import { randomUUID } from "node:crypto";
 import { stepCountIs, streamText } from "ai";
 import { usePromptConfig } from "@/tui/providers/prompt-config";
 import type { ModeType, Message, MessagePart } from "@/types";
-import { ActionTracker } from "@/modes/agent/action-tracker";
-import { ToolExecutor } from "@/modes/agent/tool-executor";
-import { createAgentTools } from "@/modes/agent/agent-tools";
-import { defaultAgentConfig, type ActionLog } from "@/modes/agent/types";
-import { createWebTools } from "@/modes/plan/web-tools";
+import { ActionTracker } from "@/ai/action-tracker";
+import { ToolExecutor } from "@/ai/tool-executor";
+import { createAgentTools, createWebTools } from "@/ai/tools";
+import { defaultAgentConfig, type ActionLog } from "@/ai/types";
 import { loadSession, saveSession, type SessionData } from "@/lib/session-storage";
 
 export type ChatStatus = "ready" | "submitted" | "streaming" | "error";

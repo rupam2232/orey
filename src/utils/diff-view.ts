@@ -1,5 +1,5 @@
 import { createTwoFilesPatch } from "diff";
-import type { ActionLog } from "./types";
+import type { ActionLog } from "../ai/types";
 
 export interface ReviewGroup {
   label: string;

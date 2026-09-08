@@ -102,8 +102,8 @@ function SessionChat({
       interruptible={status === "submitted" || status === "streaming"}
       inputDisabled={approval != null}
     >
-      {messages.map((msg) => (
-        <ChatMessage key={msg.id} msg={msg} isStreaming={status === "streaming"} />
+      {messages.map((msg, i) => (
+        <ChatMessage key={msg.id} msg={msg} isStreaming={messages.length === i + 1 && status === "streaming"} />
       ))}
       {error && <ErrorMessage message={error.message} />}
       {approval && (
