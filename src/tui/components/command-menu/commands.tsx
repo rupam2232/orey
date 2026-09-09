@@ -3,6 +3,7 @@ import {
   AgentsDialogContent,
   ModelsDialogContent,
   SessionsDialogContent,
+  WebDialogContent,
 } from "../dialogs";
 
 export const COMMANDS: Command[] = [
@@ -38,6 +39,17 @@ export const COMMANDS: Command[] = [
       ctx.dialog.open({
         title: "Select Model",
         children: <ModelsDialogContent onSelectModel={() => {}} />,
+      });
+    },
+  },
+  {
+    name: "web",
+    description: "Configure web search / Firecrawl API",
+    value: "/web",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "Web Access Settings",
+        children: <WebDialogContent />,
       });
     },
   },

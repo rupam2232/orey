@@ -23,6 +23,8 @@ export type ThemeColors = {
 export type OreyConfig = {
   theme?: ThemeColors;
   providers?: ProviderConfigList;
+  firecrawlApiKey?: string;
+  webSearchEnabled?: boolean;
 };
 
 const CONFIG_FILE = OREY_PATHS.configFile;

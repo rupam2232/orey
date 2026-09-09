@@ -3,14 +3,17 @@ import { z } from "zod";
 import Firecrawl from "@mendable/firecrawl-js";
 import type { ActionTracker } from "./action-tracker";
 import type { ToolExecutor } from "./tool-executor";
+import { readConfig } from "@/lib/config";
 
 let client: Firecrawl | null = null;
 
 function getClient(): Firecrawl {
   if (client) return client;
-  client = new Firecrawl({
-    apiKey: process.env.FIRECRAWL_API_KEY,
-  });
+  const cfg = readConfig();
+  const key = cfg.firecrawlApiKey || "";
+  if (!key) throw new Error("Firecrawl API key not configured. Use '/web' command to set it.");
+  if (cfg.webSearchEnabled === false) throw new Error("Web search is disabled. Use '/web' command to enable it.");
+  client = new Firecrawl({ apiKey: key });
   return client;
 }
 
@@ -72,10 +75,16 @@ export function createWebTools(tracker: ActionTracker) {
     }),
 
     fetch_url: tool({
-      description: "HTTP GET for a URL. Returns response body.",
-      inputSchema: z.object({ url: z.string().url() }),
-      execute: async ({ url }) => {
-        const r = await fetch(url, { redirect: "follow" });
+      description: "HTTP request to a URL. Returns response body.",
+      inputSchema: z.object({ 
+        url: z.string().url().describe("The URL to fetch"),
+        method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]).optional().default("GET").describe("HTTP method to use")
+      }),
+      execute: async ({ url, method }) => {
+        if (!readConfig().webSearchEnabled) {
+          throw new Error("Web search is disabled. Use '/web' command to enable it.");
+        }
+        const r = await fetch(url, { redirect: "follow", method });
         const body = await r.text();
         const out = clip(body, 16_000);
         tracker.log({
