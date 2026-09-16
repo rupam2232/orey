@@ -80,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-        with:xxxxxxxxxxxxxxxx
+        with:
           name: release-dist
           path: dist/
       - uses: oven-sh/setup-bun@v2
