@@ -31,6 +31,6 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*.ts", "publish/**/*.ts"],
   "exclude": ["node_modules", "out", "dist", "build"]
 }

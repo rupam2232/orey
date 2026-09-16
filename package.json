@@ -1,14 +1,21 @@
 {
   "name": "orey",
-  "module": "src/index.ts",
+  "version": "0.1.0",
+  "description": "The open-source, local AI coding agent for the terminal.",
   "type": "module",
   "private": true,
-  "bin": {
-    "orey": "./src/index.ts"
+  "license": "MIT",
+  "author": "Rupam Mondal",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rupam2232/orey.git"
+  },
+  "funding": "https://github.com/sponsors/rupam2232",
+  "scripts": {
+    "dev": "bun run src/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/marked-terminal": "^6.1.1",
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18"
   },
@@ -24,5 +31,20 @@
     "diff": "^9.0.0",
     "react": "^19.2.8",
     "react-router": "^8.3.0"
-  }
+  },
+  "keywords": [
+    "orey",
+    "orey ai",
+    "agent",
+    "ai agent",
+    "ai",
+    "coding agent",
+    "coding agent cli",
+    "llm",
+    "mcp",
+    "ai skills",
+    "terminal agent",
+    "agentic cli",
+    "agentic coding"
+  ]
 }

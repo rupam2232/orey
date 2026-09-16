@@ -1,14 +1,22 @@
 #!/usr/bin/env bun
 
+import { createElement } from "react";
+import { createCliRenderer } from "@opentui/core";
+import { createRoot } from "@opentui/react";
+import { App } from "./tui/app.tsx";
+
+declare const OREY_VERSION: string | undefined;
+const version = typeof OREY_VERSION === "string" ? OREY_VERSION : "dev";
+
 const args = process.argv.slice(2);
 const argsLower = args.map((arg) => arg.toLowerCase());
 if (argsLower.includes("--version") || argsLower.includes("-v")) {
-  console.log(`Orey 0.1.0`);
+  console.log(`Orey ${version}`);
 } else if (argsLower.includes("--help") || argsLower.includes("-h")) {
-  console.log(`Orey 0.1.0
+  console.log(`Orey ${version}
 
 Usage:
-  orey [options]
+  orey
 
 Options:
   -h, --help       Show this help message
@@ -18,11 +26,6 @@ Options:
   console.error(`Unknown option: ${args[0]}\nRun 'orey --help' for usage.`);
   process.exit(1);
 } else {
-  const { createElement } = await import("react");
-  const { createCliRenderer } = await import("@opentui/core");
-  const { createRoot } = await import("@opentui/react");
-  const { App } = await import("./tui/app.tsx");
-
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     targetFps: 60,

@@ -5,6 +5,9 @@ import { useNavigate } from "react-router";
 import { usePromptConfig } from "../providers/prompt-config";
 import { TextAttributes } from "@opentui/core";
 
+declare const OREY_VERSION: string | undefined;
+const version = typeof OREY_VERSION === "string" ? OREY_VERSION : "dev";
+
 export const Home = () => {
   const navigate = useNavigate();
   const promptConfig = usePromptConfig();
@@ -42,9 +45,13 @@ export const Home = () => {
         width="100%"
         position="absolute"
         bottom={0.5}
-        paddingLeft={2}
+        paddingX={2}
+        flexDirection="row"
+        justifyContent="space-between"
+        alignItems="center"
       >
         <text attributes={TextAttributes.DIM}>{process.cwd()}</text>
+        <text attributes={TextAttributes.DIM}>v{version}</text>
       </box>
     </box>
   );
