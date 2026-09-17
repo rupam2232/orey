@@ -18,14 +18,20 @@ async function published(name: string, version: string) {
 
 async function publish(dir: string, name: string, version: string) {
   if (process.platform !== "win32") await $`chmod -R 755 .`.cwd(dir)
-  if (!dryRun && await published(name, version)) {
+  const isPublished = await published(name, version)
+
+  if (isPublished) {
     console.log(`already published ${name}@${version}`)
+    if (dryRun) {
+      await $`npm pack --dry-run`.cwd(dir)
+    }
     return
   }
-  await $`bun pm pack`.cwd(dir)
+
   if (dryRun) {
-    await $`npm publish *.tgz --access public --dry-run --tag ${channel}`.cwd(dir)
+    await $`npm publish --access public --dry-run --tag ${channel}`.cwd(dir)
   } else {
+    await $`bun pm pack`.cwd(dir)
     await $`npm publish *.tgz --access public --provenance --tag ${channel}`.cwd(dir)
   }
 }
