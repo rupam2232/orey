@@ -4,7 +4,6 @@ import { $ } from "bun"
 import path from "node:path"
 import rootPkg from "../../package.json"
 
-// Read from root project (where src/ lives), not from publish-kit subfolder
 const rootDir = path.resolve(import.meta.dirname, "../..");
 process.chdir(rootDir)
 
@@ -98,6 +97,7 @@ for (const item of targets) {
     JSON.stringify({
       name,
       version: rootPkg.version,
+      repository: rootPkg.repository,
       preferUnplugged: true,
       os: [item.os],
       cpu: [item.arch],

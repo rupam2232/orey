@@ -13,7 +13,7 @@ const publishMain = process.env.PUBLISH_MAIN !== "false"
 const dryRun = process.env.PUBLISH_DRY_RUN === "true"
 
 async function published(name: string, version: string) {
-  return (await $`npm view ${name}@${version} version`.nothrow()).exitCode === 0
+  return (await $`npm view ${name}@${version} version --silent`.nothrow()).exitCode === 0
 }
 
 async function publish(dir: string, name: string, version: string) {
