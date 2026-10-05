@@ -14,6 +14,7 @@ import {
   setProviderModel,
 } from "@/lib/config";
 import { usePromptConfig } from "@/tui/providers/prompt-config";
+import { useTheme } from "@/tui/providers/theme";
 
 type Step = "select-provider" | "enter-api-key" | "select-model";
 
@@ -36,6 +37,7 @@ export function ModelsDialogContent({
   const dialog = useDialog();
   const toast = useToast();
   const { isTopLayer } = useKeyboardLayer();
+  const { colors } = useTheme();
 
   const startProviderId = initialProviderId ?? activeProviderId;
   const initialConfig = startProviderId
@@ -240,6 +242,7 @@ function ProviderList({
   onSelect: (provider: ModelProvider) => void;
 }) {
   const providers = providerRegistry.list();
+  const { colors } = useTheme();
 
   return (
     <DialogSearchList<ModelProvider>
@@ -261,10 +264,10 @@ function ProviderList({
             paddingX={1}
           >
             <box flexDirection="column" flexGrow={1}>
-              <text fg={isSelected ? "black" : "white"}>{item.name}</text>
+              <text fg={isSelected ? colors.selectedText ?? colors.background : colors.text ?? colors.primary}>{item.name}</text>
             </box>
             {isCurrent && (
-              <text fg={isSelected ? "black" : "green"}>✓ active</text>
+              <text fg={isSelected ? colors.selectedText ?? colors.background : colors.success}>✓ active</text>
             )}
           </box>
         );
@@ -283,6 +286,7 @@ function ApiKeyStep({
   onBack: () => void;
 }) {
   const inputRef = useRef<InputRenderable>(null);
+  const { colors } = useTheme();
   const existing = getProviderConfig(provider.id)?.apiKey;
 
   useEffect(() => {
@@ -314,10 +318,10 @@ function ApiKeyStep({
       />
       <box flexDirection="row" gap={2} marginTop={1}>
         <text>
-          <span fg="green">↵</span> save
+          <span fg={colors.success}>↵</span> save
         </text>
         <text>
-          <span fg="red">alt+b</span> back
+          <span fg={colors.error}>alt+b</span> back
         </text>
       </box>
       <BackKeyCatcher onBack={handleBack} />
@@ -348,6 +352,7 @@ function ModelList({
   currentModel: string;
   onSelect: (model: ModelInfo) => void;
 }) {
+  const { colors } = useTheme();
   const [state, setState] = useState<FetchState>({ status: "loading" });
   const [manual, setManual] = useState(false);
   const { isTopLayer } = useKeyboardLayer();
@@ -390,14 +395,14 @@ function ModelList({
   if (state.status === "error") {
     return (
       <box flexDirection="column" gap={1}>
-        <text fg="red">Failed to load models: {state.error}</text>
+          <text fg={colors.error}>Failed to load models: {state.error}</text>
         <box flexDirection="row" gap={2}>
-          <text>
-            <span fg="yellow">ctrl+a</span> change provider
-          </text>
-          <text>
-            <span fg="yellow">alt+k</span> update API key
-          </text>
+            <text>
+              <span fg={colors.warning ?? colors.secondary}>ctrl+a</span> change provider
+            </text>
+            <text>
+              <span fg={colors.warning ?? colors.secondary}>alt+k</span> update API key
+            </text>
         </box>
       </box>
     );
@@ -436,10 +441,10 @@ function ModelList({
               paddingX={1}
             >
               <box flexDirection="column" flexGrow={1} minWidth={0}>
-                <text fg={isSelected ? "black" : "white"}>{item.name}</text>
+                <text fg={isSelected ? colors.selectedText ?? colors.background : colors.text ?? colors.primary}>{item.name}</text>
               </box>
               {isCurrent && (
-                <text fg={isSelected ? "black" : "green"}>✓</text>
+                <text fg={isSelected ? colors.selectedText ?? colors.background : colors.success}>✓</text>
               )}
             </box>
           );
@@ -447,15 +452,15 @@ function ModelList({
       />
       <box flexDirection="row" gap={2} marginTop={1}>
         {provider.supportsManualEntry && (
-          <text>
-            <span fg="cyan">alt+m</span> enter manually
-          </text>
+            <text>
+              <span fg={colors.info ?? colors.secondary}>alt+m</span> enter manually
+            </text>
         )}
         <text>
-          <span fg="yellow">ctrl+a</span> provider
+            <span fg={colors.warning ?? colors.secondary}>ctrl+a</span> provider
         </text>
         <text>
-          <span fg="yellow">alt+k</span> api key
+            <span fg={colors.warning ?? colors.secondary}>alt+k</span> api key
         </text>
       </box>
     </box>
@@ -474,6 +479,7 @@ function ManualModelInput({
   enabled: boolean;
 }) {
   const inputRef = useRef<InputRenderable>(null);
+  const { colors } = useTheme();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -499,10 +505,10 @@ function ManualModelInput({
       />
       <box flexDirection="row" gap={2} marginTop={1}>
         <text>
-          <span fg="green">↵</span> use
+          <span fg={colors.success}>↵</span> use
         </text>
         <text>
-          <span fg="red">alt+b</span> back
+          <span fg={colors.error}>alt+b</span> back
         </text>
       </box>
       {enabled && <BackKeyCatcher onBack={handleBack} />}

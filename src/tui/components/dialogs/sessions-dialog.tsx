@@ -4,6 +4,7 @@ import { OREY_PATHS } from "@/constants/paths";
 import { readData } from "@/utils/data";
 import { useDialog } from "../../providers/dialog";
 import { DialogSearchList } from "../dialog-search-list";
+import { useTheme } from "@/tui/providers/theme";
 
 type SessionMeta = {
   id: string;
@@ -13,6 +14,7 @@ type SessionMeta = {
 };
 
 export function SessionsDialogContent() {
+  const { colors } = useTheme();
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const dialog = useDialog();
   const navigate = useNavigate();
@@ -51,7 +53,7 @@ export function SessionsDialogContent() {
             width="100%"
             paddingX={1}
           >
-            <text fg={isSelected ? "black" : "white"}>{title || item.id}</text>
+            <text fg={isSelected ? colors.selectedText ?? colors.background : colors.text ?? colors.primary}>{title || item.id}</text>
           </box>
         );
       }}

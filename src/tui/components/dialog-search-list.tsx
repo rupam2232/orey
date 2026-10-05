@@ -11,6 +11,7 @@ import {
 } from "@opentui/core";
 import { useKeyboard } from "@opentui/react";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
+import { useTheme } from "../providers/theme";
 
 const MAX_VISIBLE_ITEMS = 6;
 
@@ -21,6 +22,7 @@ type DialogSearchListProps<T> = {
   filterFn: (item: T, query: string) => boolean;
   renderItem: (item: T, isSelected: boolean) => ReactNode;
   getKey: (item: T) => string;
+  initialSelectedIndex?: number;
   placeholder?: string;
   emptyText?: string;
 };
@@ -32,14 +34,18 @@ export function DialogSearchList<T>({
   filterFn,
   renderItem,
   getKey,
+  initialSelectedIndex = 0,
   placeholder = "Search...",
   emptyText = "No results",
 }: DialogSearchListProps<T>) {
   const [searchValue, setSearchValue] = useState("");
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(() =>
+    Math.max(0, Math.min(initialSelectedIndex, items.length - 1)),
+  );
   const inputRef = useRef<InputRenderable>(null);
   const scrollRef = useRef<ScrollBoxRenderable>(null);
   const { isTopLayer } = useKeyboardLayer();
+  const { colors } = useTheme();
 
   const handleContentChange = useCallback(() => {
     const text = inputRef.current?.value ?? "";
@@ -115,7 +121,7 @@ export function DialogSearchList<T>({
                 flexDirection="row"
                 height={1}
                 overflow="hidden"
-                backgroundColor={isSelected ? "white" : undefined}
+                backgroundColor={isSelected ? colors.primary : undefined}
                 onMouseMove={() => {
                   setSelectedIndex(i);
                   if (item && onHighlight) onHighlight(item);

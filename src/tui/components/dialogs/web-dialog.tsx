@@ -5,6 +5,7 @@ import { useDialog } from "@/tui/providers/dialog";
 import { useToast } from "@/tui/providers/toast";
 import { readConfig, writeConfig } from "@/lib/config";
 import { useKeyboardLayer } from "@/tui/providers/keyboard-layer";
+import { useTheme } from "@/tui/providers/theme";
 
 export function WebDialogContent() {
   const cfg = readConfig();
@@ -14,6 +15,7 @@ export function WebDialogContent() {
   const toast = useToast();
   const existing = cfg.firecrawlApiKey ?? "";
   const { isTopLayer } = useKeyboardLayer();
+  const { colors } = useTheme();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -43,13 +45,18 @@ export function WebDialogContent() {
   return (
     <box flexDirection="column" gap={1}>
       <text attributes={TextAttributes.DIM}>Enter Firecrawl API Key to access web</text>
-      <input ref={inputRef} onSubmit={handleSubmit} placeholder="fc-..." maxLength={512} />
+      <input
+        ref={inputRef}
+        onSubmit={handleSubmit}
+        placeholder="fc-..."
+        maxLength={512}
+      />
       <box flexDirection="row" alignItems="center" justifyContent="space-between" marginTop={1}>
         <box flexDirection="row" gap={2}>
-          <text><span fg="green">↵</span> save</text>
-          <text><span fg="yellow">alt+w</span> toggle web access</text>
+          <text><span fg={colors.success}>↵</span> save</text>
+          <text><span fg={colors.warning ?? colors.secondary}>alt+w</span> toggle web access</text>
         </box>
-        <text fg={enabled ? "green" : "red"}>{enabled ? "✓ enabled" : "✕ disabled"}</text>
+        <text fg={enabled ? colors.success : colors.error}>{enabled ? "✓ enabled" : "✕ disabled"}</text>
       </box>
     </box>
   );

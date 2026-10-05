@@ -23,6 +23,7 @@ import { useToast } from "../providers/toast";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { useDialog } from "../providers/dialog";
 import { usePromptConfig } from "../providers/prompt-config";
+import { useTheme } from "../providers/theme";
 
 const MAX_VISIBLE_MENTIONS = 6;
 const CURRENT_DIRECTORY = process.cwd();
@@ -238,6 +239,7 @@ function FileMentionMenu({
   onSelect,
   onExecute,
 }: FileMentionMenuProps) {
+  const { colors } = useTheme();
   const visibleHeight = Math.min(candidates.length, MAX_VISIBLE_MENTIONS);
 
   if (candidates.length === 0) {
@@ -260,17 +262,23 @@ function FileMentionMenu({
             paddingX={1}
             height={1}
             overflow="hidden"
-            backgroundColor={isSelected ? "white" : undefined}
+            backgroundColor={isSelected ? colors.primary : undefined}
             onMouseMove={() => onSelect(index)}
             onMouseDown={() => onExecute(index)}
           >
             <box flexGrow={1} flexShrink={1} overflow="hidden">
-              <text selectable={false} fg={isSelected ? "black" : "white"}>
+              <text
+                selectable={false}
+                fg={isSelected ? colors.selectedText ?? colors.background : colors.text ?? colors.primary}
+              >
                 {candidate.path}
               </text>
             </box>
             <box width={8} alignItems="flex-end" flexShrink={0}>
-              <text selectable={false} fg={isSelected ? "black" : "gray"}>
+              <text
+                selectable={false}
+                fg={isSelected ? colors.selectedText ?? colors.background : colors.textMuted ?? colors.secondary}
+              >
                 {candidate.kind === "directory" ? "Folder" : "File"}
               </text>
             </box>
@@ -295,8 +303,9 @@ type Props = {
 
 export function TextArea({ onSubmit, disabled = false }: Props) {
   const { mode, toggleMode, setMode, setModel } = usePromptConfig();
+  const { colors } = useTheme();
   const textareaRef = useRef<TextareaRenderable>(null);
-  const onSubmitRef = useRef<() => void>(() => {});
+  const onSubmitRef = useRef<() => void>(() => { });
   const activeMentionRef = useRef<MentionMatch | null>(null);
   const mentionScrollRef = useRef<ScrollBoxRenderable>(null);
   const renderer = useRenderer();
@@ -563,9 +572,12 @@ export function TextArea({ onSubmit, disabled = false }: Props) {
           justifyContent="center"
           paddingX={2}
           paddingY={1}
-          backgroundColor="#1d1d1d"
+          backgroundColor={colors.surface}
           width="100%"
           gap={1}
+          border={["left"]}
+          borderStyle="heavy"
+          borderColor={colors.primary}
         >
           {showCommandMenu && (
             <box
@@ -573,7 +585,7 @@ export function TextArea({ onSubmit, disabled = false }: Props) {
               bottom="100%"
               left={0}
               width="100%"
-              backgroundColor="#1d1d1d"
+              backgroundColor={colors.surface}
             >
               <CommandMenu
                 query={commandQuery}
@@ -590,7 +602,7 @@ export function TextArea({ onSubmit, disabled = false }: Props) {
               bottom="100%"
               left={0}
               width="100%"
-              backgroundColor="#1d1d1d"
+              backgroundColor={colors.surface}
               zIndex={10}
             >
               <FileMentionMenu
