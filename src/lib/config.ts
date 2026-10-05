@@ -18,6 +18,19 @@ export type ThemeColors = {
   error: string;
   background: string;
   surface: string;
+  markdownText?: string;
+  markdownHeading?: string;
+  markdownLink?: string;
+  markdownCode?: string;
+  markdownQuote?: string;
+  markdownEmphasis?: string;
+  markdownStrong?: string;
+  markdownList?: string;
+  text?: string;
+  textMuted?: string;
+  warning?: string;
+  info?: string;
+  selectedText?: string;
 };
 
 export type OreyConfig = {

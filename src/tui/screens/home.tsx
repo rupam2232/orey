@@ -4,6 +4,7 @@ import { TextArea } from "../components/textarea";
 import { useNavigate } from "react-router";
 import { usePromptConfig } from "../providers/prompt-config";
 import { TextAttributes } from "@opentui/core";
+import { useTheme } from "../providers/theme";
 
 declare const OREY_VERSION: string | undefined;
 const version = typeof OREY_VERSION === "string" ? OREY_VERSION : "dev";
@@ -11,6 +12,7 @@ const version = typeof OREY_VERSION === "string" ? OREY_VERSION : "dev";
 export const Home = () => {
   const navigate = useNavigate();
   const promptConfig = usePromptConfig();
+  const { colors } = useTheme();
 
   const handleSubmit = useCallback(
     (text: string) => {
@@ -35,7 +37,7 @@ export const Home = () => {
       flexGrow={1}
       gap={2}
       position="relative"
-      backgroundColor="#0f0f0f"
+      backgroundColor={colors.background}
     >
       <Banner text="orey" />
       <box width="100%" maxWidth={80}>
@@ -46,6 +48,7 @@ export const Home = () => {
         position="absolute"
         bottom={0.5}
         paddingX={2}
+        paddingY={1}
         flexDirection="row"
         justifyContent="space-between"
         alignItems="center"

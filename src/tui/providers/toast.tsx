@@ -7,7 +7,8 @@ import {
   useMemo,
 } from "react";
 import type { ReactNode } from "react";
-import { useTerminalDimensions } from "@opentui/react";
+import { useTheme } from "./theme";
+import { useTerminalDimensionsContext } from "./terminal-dimensions";
 
 type ToastVariant = "success" | "error" | "info";
 
@@ -86,16 +87,17 @@ type ToastProps = {
 };
 
 function Toast({ currentToast }: ToastProps) {
-  const { width } = useTerminalDimensions();
+  const { width } = useTerminalDimensionsContext();
+  const { colors } = useTheme();
 
   if (!currentToast) {
     return null;
   }
 
   const variantColors: Record<ToastVariant, string> = {
-    success: "#4CAF50",
-    error: "#F44336",
-    info: "#2196F3",
+    success: colors.success,
+    error: colors.error,
+    info: colors.info ?? colors.secondary,
   };
 
   const borderColor = currentToast.variant
@@ -114,11 +116,11 @@ function Toast({ currentToast }: ToastProps) {
       paddingRight={2}
       paddingTop={1}
       paddingBottom={1}
-      backgroundColor="#1E1E1E"
+      backgroundColor={colors.surface}
       borderColor={borderColor}
     >
       <box flexDirection="column" gap={1} width="100%">
-        <text fg="#E1E1E1" wrapMode="word" width="100%">
+        <text fg={colors.text ?? colors.primary} wrapMode="word" width="100%">
           {currentToast.message}
         </text>
       </box>

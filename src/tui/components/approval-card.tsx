@@ -7,6 +7,7 @@ import {
   groupPendingActions,
   type ReviewGroup,
 } from "@/utils/diff-view";
+import { useTheme } from "@/tui/providers/theme";
 
 type Props = {
   pending: ActionLog[];
@@ -38,6 +39,7 @@ function filetypeFor(group: ReviewGroup): string | undefined {
 }
 
 export function ApprovalCard({ pending, onComplete }: Props) {
+  const { colors } = useTheme();
   const groups = useMemo(() => groupPendingActions(pending), [pending]);
 
   const [phase, setPhase] = useState<"summary" | "review">("summary");
@@ -98,7 +100,7 @@ export function ApprovalCard({ pending, onComplete }: Props) {
       width="100%"
       flexDirection="column"
       border
-      borderColor="#d97706"
+      borderColor={colors.warning ?? colors.secondary}
       padding={1}
       gap={1}
       marginTop={1}

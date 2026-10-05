@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TextAttributes } from "@opentui/core";
 import type { BoxRenderable } from "@opentui/core";
-import { useTerminalDimensions } from "@opentui/react";
 import type { ModeType, MessagePart } from "@/types";
 import { Markdown } from "../markdown";
+import { useTerminalDimensionsContext } from "@/tui/providers/terminal-dimensions";
 
 const WIDE_CHAR_RANGES =
   "\u1100-\u115F" +
@@ -109,7 +109,7 @@ function ReasoningToggle({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const { width: terminalWidth } = useTerminalDimensions();
+  const { width: terminalWidth } = useTerminalDimensionsContext();
   const boxRef = useRef<BoxRenderable | null>(null);
   const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
 
@@ -177,8 +177,6 @@ export function BotMessage({
 }: Props) {
   const modeLabel =
     mode === "plan" ? "Plan" : mode === "ask" ? "Ask" : "Agent";
-
-  useTerminalDimensions();
 
   const [manuallyExpanded, setManuallyExpanded] = useState<Set<number>>(
     () => new Set(),

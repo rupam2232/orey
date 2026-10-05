@@ -3,6 +3,7 @@ import {
   AgentsDialogContent,
   ModelsDialogContent,
   SessionsDialogContent,
+  ThemeDialogContent,
   WebDialogContent,
 } from "../dialogs";
 
@@ -39,6 +40,17 @@ export const COMMANDS: Command[] = [
       ctx.dialog.open({
         title: "Select Model",
         children: <ModelsDialogContent onSelectModel={() => {}} />,
+      });
+    },
+  },
+  {
+    name: "themes",
+    description: "Change color theme",
+    value: "/themes",
+    action: (ctx) => {
+      ctx.dialog.open({
+        title: "Switch theme",
+        children: <ThemeDialogContent />,
       });
     },
   },

@@ -3,6 +3,7 @@ import { Children, type ReactNode } from "react";
 import { Spinner } from "./spinner";
 import { usePromptConfig } from "../providers/prompt-config";
 import { TextArea } from "./textarea";
+import { useTheme } from "../providers/theme";
 
 declare const OREY_VERSION: string | undefined;
 const version = typeof OREY_VERSION === "string" ? OREY_VERSION : "dev";
@@ -23,6 +24,7 @@ export function SessionShell({
   interruptible = false,
 }: Props) {
   const { mode } = usePromptConfig();
+  const { colors } = useTheme();
 
   const cleanChildren = Children.toArray(children).filter(
     (child) => typeof child !== "string",
@@ -34,7 +36,8 @@ export function SessionShell({
       flexGrow={1}
       width="100%"
       height="100%"
-      paddingY={1}
+      backgroundColor={colors.background}
+      paddingY={1.5}
       paddingX={2}
       gap={1}
     >
@@ -47,7 +50,6 @@ export function SessionShell({
       <box
         width="100%"
         gap={2}
-        paddingLeft={1}
       >
         <box
           flexDirection="row"

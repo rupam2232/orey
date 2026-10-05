@@ -22,6 +22,7 @@ It combines read-only codebase intelligence, structured planning, and an agent t
 - Plan mode for structured implementation planning.
 - Ask mode for read-only codebase questions.
 - OpenRouter model selection from inside the terminal UI.
+- Supports multiple themes with live preview and persistent selection.
 - Optional Firecrawl web search, crawling, and URL fetching.
 - Persistent local sessions and configuration under `~/.orey`.
 - Native binaries for Linux, macOS, and Windows.
@@ -140,10 +141,21 @@ Type `/` in the prompt to open the command menu.
 /new       Start a new session
 /modes     Switch between Agent, Plan, and Ask modes
 /models    Configure the provider, API key, and model
+/theme     Preview and choose the terminal color theme
 /web       Configure Firecrawl web access
 /sessions  Browse previous local sessions
 /exit      Quit Orey
 ```
+
+## Themes
+
+Use `/theme` from the home screen or inside a session to open the theme selector.
+
+Use the arrow keys or mouse to preview a theme. The interface updates immediately,
+including the prompt, dialogs, menus, markdown responses, and syntax highlighting.
+Press **Enter** to save the selected theme. Closing the selector without confirming
+restores the previously saved theme. The selection is stored in
+`~/.orey/config.json` and is restored the next time Orey starts.
 
 ## Model Provider
 
