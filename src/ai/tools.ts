@@ -8,8 +8,12 @@ import { readConfig } from "@/lib/config";
 function getClient(): Firecrawl {
   const cfg = readConfig();
   const key = cfg.firecrawlApiKey || "";
-  if (!key) throw new Error("Firecrawl API key not configured. Use '/web' command to set it.");
-  if (cfg.webSearchEnabled === false) throw new Error("Web search is disabled. Use '/web' command to enable it.");
+  if (!key)
+    throw new Error(
+      "Firecrawl API key not configured. Use '/web' command to set it.",
+    );
+  if (cfg.webSearchEnabled === false)
+    throw new Error("Web search is disabled. Use '/web' command to enable it.");
   return new Firecrawl({ apiKey: key });
 }
 
@@ -22,8 +26,15 @@ export function createWebTools(tracker: ActionTracker) {
     web_search: tool({
       description: "Search the web. Returns title/url/snippet list.",
       inputSchema: z.object({
-        query: z.string().min(1),
-        limit: z.number().int().min(1).max(10).optional().default(5),
+        query: z.string().min(1).describe("Search query"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(10)
+          .optional()
+          .default(5)
+          .describe("Maximum number of results to return"),
       }),
       execute: async ({ query, limit }) => {
         const res = await getClient().search(query, {
@@ -56,7 +67,9 @@ export function createWebTools(tracker: ActionTracker) {
 
     web_crawl: tool({
       description: "Scrape a URL into markdown text.",
-      inputSchema: z.object({ url: z.string().url() }),
+      inputSchema: z.object({
+        url: z.string().url().describe("URL to scrape"),
+      }),
       execute: async ({ url }) => {
         const doc = await getClient().scrape(url, { formats: ["markdown"] });
         const md = (doc as { markdown?: string }).markdown ?? "";
@@ -72,13 +85,19 @@ export function createWebTools(tracker: ActionTracker) {
 
     fetch_url: tool({
       description: "HTTP request to a URL. Returns response body.",
-      inputSchema: z.object({ 
+      inputSchema: z.object({
         url: z.string().url().describe("The URL to fetch"),
-        method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]).optional().default("GET").describe("HTTP method to use")
+        method: z
+          .enum(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
+          .optional()
+          .default("GET")
+          .describe("HTTP method to use"),
       }),
       execute: async ({ url, method }) => {
         if (!readConfig().webSearchEnabled) {
-          throw new Error("Web search is disabled. Use '/web' command to enable it.");
+          throw new Error(
+            "Web search is disabled. Use '/web' command to enable it.",
+          );
         }
         const r = await fetch(url, { redirect: "follow", method });
         const body = await r.text();
@@ -98,8 +117,8 @@ export function createWebTools(tracker: ActionTracker) {
   };
 }
 
-export function createAgentTools(executor: ToolExecutor){
-return {
+export function createAgentTools(executor: ToolExecutor) {
+  return {
     read_file: tool({
       description:
         "Read a text file from the workspace. Use a path relative to the project root.",
@@ -111,35 +130,35 @@ return {
 
     create_file: tool({
       description:
-        "Stage creation of a new file (not written until the user approves).",
+        "Create a new file with the given content. Use a path relative to the project root.",
       inputSchema: z.object({
-        path: z.string(),
-        content: z.string(),
+        path: z.string().describe("Relative file path"),
+        content: z.string().describe("Content to write to the file"),
       }),
       execute: async ({ path: p, content }) => executor.createFile(p, content),
     }),
 
     modify_file: tool({
       description:
-        "Stage a full-file replacement for an existing file (pending approval).",
+        "A full-file replacement for an existing file. Use a path relative to the project root.",
       inputSchema: z.object({
-        path: z.string(),
+        path: z.string().describe("Relative file path"),
         content: z.string().describe("Complete new file contents"),
       }),
       execute: async ({ path: p, content }) => executor.modifyFile(p, content),
     }),
 
     delete_file: tool({
-      description: "Stage deletion of a file (pending approval).",
+      description: "Delete a file. Use a path relative to the project root.",
       inputSchema: z.object({
-        path: z.string(),
+        path: z.string().describe("Relative file path"),
       }),
       execute: async ({ path: p }) => executor.deleteFile(p),
     }),
 
     create_folder: tool({
       description:
-        "Stage creation of a directory tree (pending approval). Uses mkdir -p on apply.",
+        "Create a directory tree (folder). Uses mkdir -p on apply. Use a path relative to the project root.",
       inputSchema: z.object({
         path: z.string().describe("Relative directory path"),
       }),
@@ -147,10 +166,15 @@ return {
     }),
 
     list_files: tool({
-      description: "List files and directories under a path.",
+      description:
+        "List files and directories under a path. Use a path relative to the project root.",
       inputSchema: z.object({
-        path: z.string(),
-        recursive: z.boolean().optional().default(false),
+        path: z.string().describe("Relative directory path"),
+        recursive: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Whether to list files recursively"),
       }),
       execute: async ({ path: p, recursive }) =>
         executor.listFiles(p, recursive),
@@ -164,7 +188,12 @@ return {
         pattern: z
           .string()
           .describe("Glob-like pattern using * and ** (forward slashes)"),
-        content_contains: z.string().optional(),
+        content_contains: z
+          .string()
+          .optional()
+          .describe(
+            `Optional substring to filter files by content. Supports these file types: ${Array.from(executor.textExtensions()).join(", ")}`,
+          ),
       }),
       execute: async ({ root, pattern, content_contains }) =>
         executor.searchFiles(root, pattern, content_contains),
@@ -172,9 +201,12 @@ return {
 
     analyze_codebase: tool({
       description:
-        "Summarize structure: file counts, size, extensions. Read-only.",
+        "Summarize structure: file counts, directory counts, size. Read-only.",
       inputSchema: z.object({
-        path: z.string().default("."),
+        path: z
+          .string()
+          .default(".")
+          .describe("Path to analyze, relative to project root"),
       }),
       execute: async ({ path: p }) => executor.analyzeCodebase(p),
     }),
@@ -199,7 +231,7 @@ return {
       description:
         "Read a SKILL.md file. Path must be absolute and under skill roots, or use a path returned by list_skills.",
       inputSchema: z.object({
-        path: z.string(),
+        path: z.string().describe("Absolute path to SKILL.md file"),
       }),
       execute: async ({ path: p }) => executor.readSkill(p),
     }),

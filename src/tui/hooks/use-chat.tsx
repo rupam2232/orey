@@ -142,13 +142,6 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
         approvedSet.has(action.id),
       );
     }
-
-    const { errors } = request.executor.applyApprovedFromTracker();
-    request.executor.clearStaging();
-
-    if (errors.length) {
-      setError(new Error(errors.join("\n")));
-    }
   }, []);
 
   const submit = useCallback(

@@ -5,28 +5,10 @@ import { spawnSync } from "node:child_process";
 import type { AgentConfig, ActionLog } from "./types";
 import { ActionTracker } from "./action-tracker";
 
-const TEXT_EXT = new Set([
-  ".ts",
-  ".tsx",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".json",
-  ".md",
-  ".mdx",
-  ".css",
-  ".html",
-  ".yml",
-  ".yaml",
-  ".toml",
-  ".txt",
-]);
-
-function isProbablyTextFile(filePath: string): boolean {
-  const ext = path.extname(filePath).toLowerCase();
-  return TEXT_EXT.has(ext) || ext === "";
-}
+type ApplyChangesInput = Pick<ActionLog, "type" | "path"> & {
+  before?: string;
+  after?: string;
+};
 
 export class ToolExecutor {
   private overlay = new Map<string, string>();
@@ -70,6 +52,31 @@ export class ToolExecutor {
     }
   }
 
+  private isProbablyTextFile(filePath: string): boolean {
+    const ext = path.extname(filePath).toLowerCase();
+    return this.textExtensions().has(ext) || ext === "";
+  }
+
+  textExtensions() {
+    return new Set([
+      ".ts",
+      ".tsx",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs",
+      ".json",
+      ".md",
+      ".mdx",
+      ".css",
+      ".html",
+      ".yml",
+      ".yaml",
+      ".toml",
+      ".txt",
+    ]);
+  }
+
   getEffectiveText(rel: string): string | undefined {
     const key = this.norm(rel);
     if (this.deleted.has(key)) return undefined;
@@ -85,10 +92,6 @@ export class ToolExecutor {
     if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
       throw new Error(`File not found: ${rel}`);
     }
-    const st = fs.statSync(abs);
-    if (st.size > this.config.maxFileSizeToRead) {
-      throw new Error(`File too large: ${rel}`);
-    }
     const text = fs.readFileSync(abs, "utf8");
     this.tracker.log({
       type: "code_analysis",
@@ -100,74 +103,63 @@ export class ToolExecutor {
   }
 
   createFile(rel: string, content: string): string {
-    if (!this.config.tools.allowFileCreation)
+    if (!this.config.tools.allowFileCreation) {
       throw new Error("File creation disabled");
+    }
     this.assertNotExcluded(rel, "create_file");
     const key = this.norm(rel);
     const abs = this.resolveSafe(rel);
-    if (fs.existsSync(abs) && !this.deleted.has(key)) {
+    if (fs.existsSync(abs)) {
       throw new Error(`create_file: already exists: ${rel}`);
     }
-    this.deleted.delete(key);
-    this.overlay.set(key, content);
-    this.tracker.log({
-      type: "file_create",
-      path: key,
-      details: { after: content },
-      status: "pending",
-    });
-    return `Staged new file: ${key}`;
+    this.applyChanges({ type: "create_file", path: key, after: content });
+    return `Created new file: ${key}`;
   }
 
   modifyFile(rel: string, content: string): string {
-    if (!this.config.tools.allowFileModification)
+    if (!this.config.tools.allowFileModification) {
       throw new Error("File modification disabled");
+    }
     this.assertNotExcluded(rel, "modify_file");
     const before = this.getEffectiveText(rel);
-    if (before === undefined)
+    if (before === undefined) {
       throw new Error(`modify_file: file not found: ${rel}`);
+    }
     const key = this.norm(rel);
-    this.overlay.set(key, content);
-    this.tracker.log({
-      type: "file_modify",
+    this.applyChanges({
+      type: "modify_file",
       path: key,
-      details: { before, after: content },
-      status: "pending",
+      before,
+      after: content,
     });
-    return `Staged update: ${key}`;
+    this.overlay.set(key, content);
+    return `Modified file: ${key}`;
   }
 
   deleteFile(rel: string): string {
-    if (!this.config.tools.allowFileModification)
+    if (!this.config.tools.allowFileModification) {
       throw new Error("File deletion disabled");
+    }
     this.assertNotExcluded(rel, "delete_file");
     const before = this.getEffectiveText(rel);
-    if (before === undefined)
+    if (before === undefined) {
       throw new Error(`delete_file: file not found: ${rel}`);
+    }
     const key = this.norm(rel);
     this.overlay.delete(key);
     this.deleted.add(key);
-    this.tracker.log({
-      type: "file_delete",
-      path: key,
-      details: { before },
-      status: "pending",
-    });
-    return `Staged delete: ${key}`;
+    this.applyChanges({ type: "delete_file", path: key, before });
+    return `Deleted file: ${key}`;
   }
 
   createFolder(rel: string): string {
-    if (!this.config.tools.allowFolderCreation)
+    if (!this.config.tools.allowFolderCreation) {
       throw new Error("Folder creation disabled");
+    }
     this.assertNotExcluded(rel, "create_folder");
     const key = this.norm(rel);
-    this.tracker.log({
-      type: "folder_create",
-      path: key,
-      details: { after: key },
-      status: "pending",
-    });
-    return `Staged folder: ${key}`;
+    this.applyChanges({ type: "create_folder", path: key, after: key });
+    return `Created folder: ${key}`;
   }
 
   listFiles(rel: string, recursive: boolean): string {
@@ -191,8 +183,11 @@ export class ToolExecutor {
       }
     };
 
-    if (fs.statSync(abs).isDirectory()) walk(abs, "");
-    else lines.push(path.relative(this.config.codebasePath, abs));
+    if (fs.statSync(abs).isDirectory()) {
+      walk(abs, "");
+    } else {
+      lines.push(path.relative(this.config.codebasePath, abs));
+    }
 
     const out = lines.sort().join("\n");
     this.tracker.log({
@@ -211,8 +206,9 @@ export class ToolExecutor {
   ): string {
     this.assertNotExcluded(rootRel, "search_files");
     const rootAbs = this.resolveSafe(rootRel);
-    if (!fs.existsSync(rootAbs))
+    if (!fs.existsSync(rootAbs)) {
       throw new Error(`search_files: root not found: ${rootRel}`);
+    }
 
     const results: string[] = [];
     const regexFromGlob = (g: string): RegExp => {
@@ -234,10 +230,11 @@ export class ToolExecutor {
           .split(path.sep)
           .join("/");
         if (this.excluded(relP)) continue;
-        if (ent.isDirectory()) walk(full);
-        else if (nameRe.test(relP) || nameRe.test(ent.name)) {
+        if (ent.isDirectory()) {
+          walk(full);
+        } else if (nameRe.test(relP) || nameRe.test(ent.name)) {
           if (contentQuery) {
-            if (!isProbablyTextFile(full)) continue;
+            if (!this.isProbablyTextFile(full)) continue;
             const text = fs.readFileSync(full, "utf8");
             if (!text.includes(contentQuery)) continue;
           }
@@ -246,8 +243,9 @@ export class ToolExecutor {
       }
     };
 
-    if (fs.statSync(rootAbs).isDirectory()) walk(rootAbs);
-    else {
+    if (fs.statSync(rootAbs).isDirectory()) {
+      walk(rootAbs);
+    } else {
       const relP = path
         .relative(this.config.codebasePath, rootAbs)
         .split(path.sep)
@@ -267,11 +265,13 @@ export class ToolExecutor {
 
   analyzeCodebase(rootRel: string): string {
     const rootAbs = this.resolveSafe(rootRel);
-    if (!fs.existsSync(rootAbs))
+    if (!fs.existsSync(rootAbs)) {
       throw new Error(`analyze_codebase: not found: ${rootRel}`);
+    }
 
     let files = 0;
     let dirs = 0;
+    let size = 0;
     const walk = (dir: string) => {
       for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, ent.name);
@@ -282,13 +282,18 @@ export class ToolExecutor {
           walk(full);
         } else {
           files++;
+          size += fs.statSync(full).size;
         }
       }
     };
-    if (fs.statSync(rootAbs).isDirectory()) walk(rootAbs);
-    else files = 1;
+    if (fs.statSync(rootAbs).isDirectory()) {
+      walk(rootAbs);
+    } else {
+      files = 1;
+      size = fs.statSync(rootAbs).size;
+    }
 
-    const summary = `Files: ${files} | Directories: ${dirs}`;
+    const summary = `Files: ${files} | Directories: ${dirs} | Size: ${size} bytes`;
     this.tracker.log({
       type: "code_analysis",
       path: this.norm(rootRel),
@@ -302,7 +307,7 @@ export class ToolExecutor {
     if (!this.config.tools.allowShellExecution)
       throw new Error("Shell execution disabled");
     this.tracker.log({
-      type: "tool_execute",
+      type: "execute_shell",
       path: "shell",
       details: { command, toolName: "execute_shell" },
       status: "pending",
@@ -311,12 +316,7 @@ export class ToolExecutor {
   }
 
   skillRoots(): string[] {
-    const extra =
-      process.env.SKILLS_DIRS?.split(/[;]/)
-        .map((s) => s.trim())
-        .filter(Boolean) ?? [];
     return [
-      ...extra,
       path.join(homedir(), ".cursor/skills-cursor"),
       path.join(homedir(), ".claude/skills"),
     ];
@@ -364,63 +364,35 @@ export class ToolExecutor {
     return text;
   }
 
-  applyApprovedFromTracker(): { errors: string[] } {
-    const errors: string[] = [];
-    const all = [...this.tracker.getActions()];
-
-    for (const a of all.filter(
-      (x) => x.type === "folder_create" && x.status === "approved",
-    )) {
-      try {
-        fs.mkdirSync(this.resolveSafe(a.path), { recursive: true });
-      } catch (e) {
-        errors.push(String(e));
+  private applyChanges({ type, path: p, before, after }: ApplyChangesInput) {
+    try {
+      if (type === "create_folder") {
+        fs.mkdirSync(this.resolveSafe(p), { recursive: true });
       }
-    }
 
-    const fileOps = all
-      .filter(
-        (a) =>
-          (a.type === "file_create" ||
-            a.type === "file_modify" ||
-            a.type === "file_delete") &&
-          a.status === "approved",
-      )
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-    const lastByPath = new Map<string, ActionLog>();
-    for (const a of fileOps) lastByPath.set(this.norm(a.path), a);
-
-    for (const [p, a] of lastByPath) {
-      try {
-        if (a.type === "file_delete")
+      if (
+        type === "create_file" ||
+        type === "modify_file" ||
+        type === "delete_file"
+      ) {
+        if (type === "delete_file")
           fs.rmSync(this.resolveSafe(p), { force: true });
         else {
           const target = this.resolveSafe(p);
           fs.mkdirSync(path.dirname(target), { recursive: true });
-          fs.writeFileSync(target, a.details.after ?? "", "utf8");
+          fs.writeFileSync(target, after ?? "", "utf8");
         }
-      } catch (e) {
-        errors.push(String(e));
       }
-    }
 
-    for (const a of all.filter(
-      (x) => x.type === "tool_execute" && x.status === "approved",
-    )) {
-      const cmd = a.details.command;
-      if (!cmd) continue;
-      const r = spawnSync(cmd, {
-        shell: true,
-        cwd: this.config.codebasePath,
-        encoding: "utf8",
-        maxBuffer: 16 * 1024 * 1024,
+      this.tracker.log({
+        type,
+        path: p,
+        details: { after, before, toolName: type },
+        status: "executed",
       });
-      if (r.status && r.status !== 0)
-        errors.push(`shell exit ${r.status}: ${cmd}`);
+    } catch (e) {
+      throw new Error(String(e));
     }
-
-    return { errors };
   }
 
   clearStaging(): void {
