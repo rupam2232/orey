@@ -8,6 +8,7 @@ import { ToolExecutor } from "@/ai/tool-executor";
 import { createAgentTools, createWebTools } from "@/ai/tools";
 import { defaultAgentConfig, type ActionLog } from "@/ai/types";
 import { loadSession, saveSession, type SessionData } from "@/lib/session-storage";
+import { formatPatch } from "@/utils/diff-view";
 
 export type ChatStatus = "ready" | "submitted" | "streaming" | "error";
 
@@ -16,6 +17,30 @@ export type ApprovalRequest = {
   executor: ToolExecutor;
   pending: ActionLog[];
 };
+
+type MutationToolName =
+  | "create_file"
+  | "modify_file"
+  | "delete_file"
+  | "create_folder";
+
+function isMutationToolName(name: string): name is MutationToolName {
+  return (
+    name === "create_file" ||
+    name === "modify_file" ||
+    name === "delete_file" ||
+    name === "create_folder"
+  );
+}
+
+function persistableToolArgs(toolName: string, args: unknown): unknown {
+  if (!isMutationToolName(toolName) || !args || typeof args !== "object") {
+    return args;
+  }
+
+  const path = (args as { path?: unknown }).path;
+  return typeof path === "string" ? { path } : {};
+}
 
 function buildSystemPrompt(mode: ModeType, cwd: string): string {
   const base = `Workspace root: ${cwd}\nToday's date: ${new Date().toLocaleDateString()}`;
@@ -256,7 +281,7 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
               type: "tool-call",
               toolCallId,
               toolName,
-              args,
+              args: persistableToolArgs(toolName, args),
               state: "call",
             });
           } else if (partType === "tool-result") {
@@ -269,6 +294,31 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
             if (target && target.type === "tool-call") {
               target.state = "output-available";
               target.output = resultOutput;
+              if (isMutationToolName(target.toolName)) {
+                const args =
+                  target.args && typeof target.args === "object"
+                    ? (target.args as { path?: unknown })
+                    : {};
+                const actionType = target.toolName;
+                const action = tracker.findLatest(
+                  actionType,
+                  String(args.path ?? ""),
+                );
+                if (action) {
+                  target.change = {
+                    type: actionType,
+                    path: action.path,
+                    patch:
+                      actionType === "create_folder"
+                        ? undefined
+                        : formatPatch(
+                            action.path,
+                            action.details.before ?? "",
+                            action.details.after ?? "",
+                          ),
+                  };
+                }
+              }
             }
           } else if (partType === "error") {
             const errVal = (part as { error?: unknown }).error;

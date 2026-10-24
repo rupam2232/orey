@@ -13,6 +13,7 @@ export function UserMessage({ message }: Props) {
       <box
         border={["left"]}
         borderStyle="heavy"
+        backgroundColor={colors.surface}
         borderColor={colors.primary}
         width="100%"
       >

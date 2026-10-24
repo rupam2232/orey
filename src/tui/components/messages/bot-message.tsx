@@ -4,6 +4,7 @@ import type { BoxRenderable } from "@opentui/core";
 import type { ModeType, MessagePart } from "@/types";
 import { Markdown } from "../markdown";
 import { useTerminalDimensionsContext } from "@/tui/providers/terminal-dimensions";
+import { CodeOutput } from "../code-output";
 
 const WIDE_CHAR_RANGES =
   "\u1100-\u115F" +
@@ -56,7 +57,18 @@ function formatToolName(name: string): string {
 
 function formatToolArgs(tc: Extract<MessagePart, { type: "tool-call" }>): string {
   if (!tc.args || typeof tc.args !== "object") return String(tc.args ?? "");
-  const entries = Object.entries(tc.args as Record<string, unknown>);
+  const args = tc.args as Record<string, unknown>;
+  const mutationTools = new Set([
+    "create_file",
+    "modify_file",
+    "delete_file",
+    "create_folder",
+  ]);
+  if (mutationTools.has(tc.toolName) && typeof args.path === "string") {
+    return `path: ${args.path}`;
+  }
+
+  const entries = Object.entries(args);
   return entries
     .map(([key, value]) => {
       const valStr = typeof value === "string" ? value : JSON.stringify(value);
@@ -230,6 +242,13 @@ export function BotMessage({
                       ? ` (failed: ${part.errorText})`
                       : ""}
                   </text>
+                  {part.state === "output-available" && part.change ? (
+                    <CodeOutput
+                      type={part.change.type}
+                      path={part.change.path}
+                      patch={part.change.patch}
+                    />
+                  ) : <text attributes={TextAttributes.DIM}>{`${String(part.output).length > 1000 ? String(part.output).slice(0, 1000) + "..." : String(part.output)}`}</text>}
                 </box>
               );
             }

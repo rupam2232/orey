@@ -27,6 +27,16 @@ export class ActionTracker {
     return this.actions;
   }
 
+  findLatest(type: ActionLog["type"], path: string): ActionLog | undefined {
+    return [...this.actions]
+      .reverse()
+      .find(
+        (action) =>
+          action.type === type &&
+          action.path === path,
+      );
+  }
+
   getPendingMutations(): ActionLog[] {
     return this.actions.filter(
       (a) => isMutationType(a.type) && a.status === "pending",

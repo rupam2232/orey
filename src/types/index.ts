@@ -17,6 +17,11 @@ export type MessagePart =
         state: "call" | "output-available" | "output-error";
         output?: unknown;
         errorText?: string;
+        change?: {
+            type: "create_file" | "modify_file" | "delete_file" | "create_folder";
+            path: string;
+            patch?: string;
+        };
     };
 
 export type Message = {
