@@ -41,7 +41,7 @@ export function CodeOutput({ type, path, patch }: Props) {
       <diff
         diff={patch ?? ""}
         filetype={filetypeFor(path)}
-        wrapMode="none"
+        wrapMode="word"
         showLineNumbers
         view="unified"
         width="100%"

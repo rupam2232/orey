@@ -14,7 +14,7 @@ import { usePromptConfig } from "../providers/prompt-config";
 import { useToast } from "../providers/toast";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { loadSession, type SessionData } from "@/lib/session-storage";
-import { ApprovalCard } from "../components/approval-card";
+// import { ApprovalCard } from "../components/approval-card";
 
 const initialPromptSchema = z.object({
   message: z.string(),
@@ -35,7 +35,17 @@ const sessionLocationSchema = z.object({
   initialPrompt: initialPromptSchema.optional(),
 });
 
-function ChatMessage({ msg, isStreaming }: { msg: Message; isStreaming: boolean }) {
+function ChatMessage({
+  msg,
+  isStreaming,
+  onRevert,
+  isRevertAvailable,
+}: {
+  msg: Message;
+  isStreaming: boolean;
+  onRevert?: (actionId: string) => void;
+  isRevertAvailable?: (actionId: string) => boolean;
+}) {
   if (msg.role === "user") {
     const text = msg.parts
       .filter((p: MessagePart) => p.type === "text")
@@ -52,6 +62,8 @@ function ChatMessage({ msg, isStreaming }: { msg: Message; isStreaming: boolean 
       mode={msg.metadata?.mode ?? "agent"}
       durationMs={msg.metadata?.durationMs}
       streaming={isStreaming}
+      onRevert={onRevert}
+      isRevertAvailable={isRevertAvailable}
     />
   );
 }
@@ -66,8 +78,18 @@ function SessionChat({
   const [initialMessages] = useState<Message[]>(() => session.messages || []);
   const { model, mode } = usePromptConfig();
   const { isTopLayer } = useKeyboardLayer();
-  const { messages, status, submit, abort, interrupt, error, approval, resolveApproval } =
-    useChat(session.id, initialMessages);
+  const {
+    messages,
+    status,
+    submit,
+    abort,
+    interrupt,
+    error,
+    approval,
+    // resolveApproval,
+    revertAction,
+    isRevertAvailable,
+  } = useChat(session.id, initialMessages);
   const hasSubmittedInitialPromptRef = useRef(false);
 
   useEffect(() => {
@@ -103,15 +125,21 @@ function SessionChat({
       inputDisabled={approval != null}
     >
       {messages.map((msg, i) => (
-        <ChatMessage key={msg.id} msg={msg} isStreaming={messages.length === i + 1 && status === "streaming"} />
+        <ChatMessage
+          key={msg.id}
+          msg={msg}
+          isStreaming={messages.length === i + 1 && status === "streaming"}
+          onRevert={revertAction}
+          isRevertAvailable={isRevertAvailable}
+        />
       ))}
       {error && <ErrorMessage message={error.message} />}
-      {approval && (
+      {/* {approval && (
         <ApprovalCard
           pending={approval.pending}
           onComplete={(ids) => resolveApproval(ids)}
         />
-      )}
+      )} */}
     </SessionShell>
   );
 }

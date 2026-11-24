@@ -6,7 +6,12 @@ export type ActionType =
   | "code_analysis"
   | "execute_shell";
 
-export type ActionStatus = "pending" | "executed" | "approved" | "rejected";
+export type ActionStatus =
+  | "pending"
+  | "executed"
+  | "approved"
+  | "rejected"
+  | "reverted";
 
 export interface ActionLog {
   id: string;
@@ -20,9 +25,11 @@ export interface ActionLog {
     toolResult?: string;
     error?: string;
     command?: string;
+    reversible?: boolean;
   };
   status: ActionStatus;
   userApproved?: boolean;
+  reverted?: boolean;
 }
 
 export interface AgentConfig {

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ActionLog, ActionStatus } from "./types";
 import { isMutationType } from "./types";
 
@@ -11,7 +12,7 @@ export class ActionTracker {
     },
   ): ActionLog {
     const action: ActionLog = {
-      id: entry.id ?? `action_${this.actions.length}`,
+      id: entry.id ?? `action_${randomUUID()}`,
       timestamp: entry.timestamp ?? new Date(),
       type: entry.type,
       path: entry.path,
@@ -48,5 +49,13 @@ export class ActionTracker {
     if (!a) return;
     a.status = status;
     if (userApproved !== undefined) a.userApproved = userApproved;
+  }
+
+  markReverted(id: string): ActionLog | undefined {
+    const action = this.actions.find((x) => x.id === id);
+    if (!action) return undefined;
+    action.reverted = true;
+    action.status = "reverted";
+    return action;
   }
 }

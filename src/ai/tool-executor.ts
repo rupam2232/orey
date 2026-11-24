@@ -17,8 +17,12 @@ export class ToolExecutor {
 
   constructor(
     private readonly tracker: ActionTracker,
-    private readonly config: AgentConfig,
+    private config: AgentConfig,
   ) {}
+
+  updateConfig(config: AgentConfig): void {
+    this.config = config;
+  }
 
   private resolveSafe(rel: string): string {
     const abs = path.resolve(this.config.codebasePath, rel);
@@ -157,7 +161,15 @@ export class ToolExecutor {
     }
     this.assertNotExcluded(rel, "create_folder");
     const key = this.norm(rel);
-    this.applyChanges({ type: "create_folder", path: key, after: key });
+    const existed = fs.existsSync(this.resolveSafe(rel));
+    const action = this.applyChanges({
+      type: "create_folder",
+      path: key,
+      after: key,
+    });
+    if (action.type === "create_folder" && action.path === key) {
+      action.details.reversible = !existed;
+    }
     return `Created folder: ${key}`;
   }
 
@@ -397,5 +409,78 @@ export class ToolExecutor {
   clearStaging(): void {
     this.overlay.clear();
     this.deleted.clear();
+  }
+
+  revertAction(actionId: string): string {
+    const action = this.tracker.getActions().find((item) => item.id === actionId);
+    if (!action) throw new Error(`Revert unavailable: action not found: ${actionId}`);
+    if (!action.reverted) {
+      if (
+        action.type === "create_file" ||
+        action.type === "modify_file" ||
+        action.type === "delete_file"
+      ) {
+        this.revertFileAction(action);
+      } else if (action.type === "create_folder") {
+        this.revertFolderAction(action);
+      } else {
+        throw new Error(`Revert unavailable for ${action.type}`);
+      }
+    }
+
+    this.tracker.markReverted(action.id);
+    return `Reverted ${action.type}: ${action.path}`;
+  }
+
+  private revertFileAction(action: ActionLog): void {
+    const abs = this.resolveSafe(action.path);
+    const key = this.norm(action.path);
+    const current = fs.existsSync(abs) && fs.statSync(abs).isFile()
+      ? fs.readFileSync(abs, "utf8")
+      : undefined;
+    const before = action.details.before;
+    const after = action.details.after;
+
+    if (action.type === "create_file") {
+      if (current !== after) {
+        throw new Error(`Cannot revert ${action.path}: file changed since the AI action`);
+      }
+      fs.rmSync(abs);
+      this.overlay.delete(key);
+      this.deleted.add(key);
+      return;
+    }
+
+    if (action.type === "modify_file") {
+      if (current !== after) {
+        throw new Error(`Cannot revert ${action.path}: file changed since the AI action`);
+      }
+      fs.writeFileSync(abs, before ?? "", "utf8");
+      this.overlay.set(key, before ?? "");
+      this.deleted.delete(key);
+      return;
+    }
+
+    if (current !== undefined) {
+      throw new Error(`Cannot revert ${action.path}: file was recreated or changed`);
+    }
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, before ?? "", "utf8");
+    this.overlay.set(key, before ?? "");
+    this.deleted.delete(key);
+  }
+
+  private revertFolderAction(action: ActionLog): void {
+    if (action.details.reversible !== true) {
+      throw new Error(`Cannot revert ${action.path}: folder existed before the AI action`);
+    }
+    const abs = this.resolveSafe(action.path);
+    if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) {
+      throw new Error(`Cannot revert ${action.path}: folder is missing`);
+    }
+    if (fs.readdirSync(abs).length > 0) {
+      throw new Error(`Cannot revert ${action.path}: folder is not empty`);
+    }
+    fs.rmdirSync(abs);
   }
 }

@@ -178,6 +178,8 @@ type Props = {
   mode: ModeType;
   durationMs?: number;
   streaming?: boolean;
+  onRevert?: (actionId: string) => void;
+  isRevertAvailable?: (actionId: string) => boolean;
 };
 
 export function BotMessage({
@@ -186,6 +188,8 @@ export function BotMessage({
   mode,
   durationMs,
   streaming = false,
+  onRevert,
+  isRevertAvailable,
 }: Props) {
   const modeLabel =
     mode === "plan" ? "Plan" : mode === "ask" ? "Ask" : "Agent";
@@ -243,11 +247,35 @@ export function BotMessage({
                       : ""}
                   </text>
                   {part.state === "output-available" && part.change ? (
-                    <CodeOutput
-                      type={part.change.type}
-                      path={part.change.path}
-                      patch={part.change.patch}
-                    />
+                    <>
+                      <CodeOutput
+                        type={part.change.type}
+                        path={part.change.path}
+                        patch={part.change.patch}
+                      />
+                      {part.change.reverted ? (
+                        <text paddingLeft={2} attributes={TextAttributes.DIM}>
+                          (reverted)
+                        </text>
+                      ) : (
+                        <>
+                          {part.change.revertError ? (
+                            <text paddingLeft={2} attributes={TextAttributes.DIM}>
+                              ({part.change.revertError})
+                            </text>
+                          ) : null}
+                          {onRevert &&
+                          isRevertAvailable?.(part.change.actionId) ? (
+                            <text
+                              paddingLeft={2}
+                              onMouseDown={() => onRevert(part.change!.actionId)}
+                            >
+                              [ Revert ]
+                            </text>
+                          ) : null}
+                        </>
+                      )}
+                    </>
                   ) : <text attributes={TextAttributes.DIM}>{`${String(part.output).length > 1000 ? String(part.output).slice(0, 1000) + "..." : String(part.output)}`}</text>}
                 </box>
               );

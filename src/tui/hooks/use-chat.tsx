@@ -5,9 +5,17 @@ import { usePromptConfig } from "@/tui/providers/prompt-config";
 import type { ModeType, Message, MessagePart } from "@/types";
 import { ActionTracker } from "@/ai/action-tracker";
 import { ToolExecutor } from "@/ai/tool-executor";
+import {
+  getSessionActionContext,
+  type SessionActionContext,
+} from "@/ai/session-actions";
 import { createAgentTools, createWebTools } from "@/ai/tools";
 import { defaultAgentConfig, type ActionLog } from "@/ai/types";
-import { loadSession, saveSession, type SessionData } from "@/lib/session-storage";
+import {
+  loadSession,
+  saveSession,
+  type SessionData,
+} from "@/lib/session-storage";
 import { formatPatch } from "@/utils/diff-view";
 
 export type ChatStatus = "ready" | "submitted" | "streaming" | "error";
@@ -100,6 +108,7 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeSessionRef = useRef<SessionData | null>(null);
   const approvalRef = useRef<ApprovalRequest | null>(null);
+  const actionContextRef = useRef<SessionActionContext | null>(null);
   const messagesRef = useRef<Message[]>(messages);
   messagesRef.current = messages;
 
@@ -210,8 +219,9 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
         config.tools.allowFolderCreation = false;
         config.tools.allowShellExecution = false;
       }
-      const tracker = new ActionTracker();
-      const executor = new ToolExecutor(tracker, config);
+      const actionContext = getSessionActionContext(sessionId, config);
+      actionContextRef.current = actionContext;
+      const { tracker, executor } = actionContext;
 
       const tools = {
         ...createAgentTools(executor),
@@ -229,14 +239,18 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
             "No provider selected. Use /models to choose a provider and model.",
           );
         }
-        const formattedMessages = convertMessagesForStream(updatedMessagesWithUser);
+        const formattedMessages = convertMessagesForStream(
+          updatedMessagesWithUser,
+        );
 
         const result = streamText({
           model: currentModel,
           system: buildSystemPrompt(mode, process.cwd()),
           messages: formattedMessages,
           tools,
-          stopWhen: stepCountIs(mode === "agent" ? 25 : mode === "plan" ? 10 : 5),
+          stopWhen: stepCountIs(
+            mode === "agent" ? 25 : mode === "plan" ? 10 : 5,
+          ),
           abortSignal: controller.signal,
         });
 
@@ -258,13 +272,35 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
             } else {
               currentAssistantParts.push({ type: "text", text: textDelta });
             }
-          } else if (partType === "reasoning-delta" || partType === "reasoning") {
+          } else if (
+            partType === "reasoning-delta" ||
+            partType === "reasoning"
+          ) {
             const reasoningDelta =
-              (part as { text?: string; reasoningDelta?: string; textDelta?: string }).text ||
-              (part as { text?: string; reasoningDelta?: string; textDelta?: string }).reasoningDelta ||
-              (part as { text?: string; reasoningDelta?: string; textDelta?: string }).textDelta ||
+              (
+                part as {
+                  text?: string;
+                  reasoningDelta?: string;
+                  textDelta?: string;
+                }
+              ).text ||
+              (
+                part as {
+                  text?: string;
+                  reasoningDelta?: string;
+                  textDelta?: string;
+                }
+              ).reasoningDelta ||
+              (
+                part as {
+                  text?: string;
+                  reasoningDelta?: string;
+                  textDelta?: string;
+                }
+              ).textDelta ||
               "";
-            const lastPart = currentAssistantParts[currentAssistantParts.length - 1];
+            const lastPart =
+              currentAssistantParts[currentAssistantParts.length - 1];
             if (lastPart && lastPart.type === "reasoning") {
               lastPart.text += reasoningDelta;
             } else {
@@ -276,7 +312,9 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
           } else if (partType === "tool-call") {
             const toolCallId = (part as { toolCallId: string }).toolCallId;
             const toolName = (part as { toolName: string }).toolName;
-            const args = (part as { input?: unknown; args?: unknown }).input ?? (part as { input?: unknown; args?: unknown }).args;
+            const args =
+              (part as { input?: unknown; args?: unknown }).input ??
+              (part as { input?: unknown; args?: unknown }).args;
             currentAssistantParts.push({
               type: "tool-call",
               toolCallId,
@@ -286,9 +324,12 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
             });
           } else if (partType === "tool-result") {
             const toolCallId = (part as { toolCallId: string }).toolCallId;
-            const resultOutput = (part as { output?: unknown; result?: unknown }).output ?? (part as { output?: unknown; result?: unknown }).result;
+            const resultOutput =
+              (part as { output?: unknown; result?: unknown }).output ??
+              (part as { output?: unknown; result?: unknown }).result;
             const target = currentAssistantParts.find(
-              (p: MessagePart) => p.type === "tool-call" && p.toolCallId === toolCallId,
+              (p: MessagePart) =>
+                p.type === "tool-call" && p.toolCallId === toolCallId,
             );
 
             if (target && target.type === "tool-call") {
@@ -308,6 +349,7 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
                   target.change = {
                     type: actionType,
                     path: action.path,
+                    actionId: action.id,
                     patch:
                       actionType === "create_folder"
                         ? undefined
@@ -322,10 +364,14 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
             }
           } else if (partType === "error") {
             const errVal = (part as { error?: unknown }).error;
-            const errText = errVal instanceof Error ? errVal.message : String(errVal);
+            const errText =
+              errVal instanceof Error ? errVal.message : String(errVal);
             const lastTc = [...currentAssistantParts]
               .reverse()
-              .find((p: MessagePart) => p.type === "tool-call" && p.state === "call");
+              .find(
+                (p: MessagePart) =>
+                  p.type === "tool-call" && p.state === "call",
+              );
 
             if (lastTc && lastTc.type === "tool-call") {
               lastTc.state = "output-error";
@@ -360,7 +406,13 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
           id: assistantMessageId,
           role: "assistant",
           parts: currentAssistantParts,
-          metadata: { mode, model, durationMs: finalDurationMs, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          metadata: {
+            mode,
+            model,
+            durationMs: finalDurationMs,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
         };
 
         const finalMessages = [...updatedMessagesWithUser, finalAssistantMsg];
@@ -382,15 +434,24 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
           id: assistantMessageId,
           role: "assistant",
           parts: [
-            ...messagesRef.current
+            ...(messagesRef.current
               .find((m) => m.id === assistantMessageId)
-              ?.parts.filter((p: MessagePart) => p.type !== "text") ?? [],
+              ?.parts.filter((p: MessagePart) => p.type !== "text") ?? []),
             { type: "text", text: `⚠️ Error: ${errObj.message}` },
           ],
-          metadata: { mode, model, durationMs, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+          metadata: {
+            mode,
+            model,
+            durationMs,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
         };
 
-        const finalFailedMessages = [...updatedMessagesWithUser, failedAssistantMsg];
+        const finalFailedMessages = [
+          ...updatedMessagesWithUser,
+          failedAssistantMsg,
+        ];
         setMessages(finalFailedMessages);
         persistCurrentMessages(finalFailedMessages);
       } finally {
@@ -399,6 +460,52 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
     },
     [persistCurrentMessages],
   );
+
+  const revertAction = useCallback(
+    (actionId: string) => {
+      const context = actionContextRef.current;
+      if (!context) {
+        return;
+      }
+
+      let revertError: string | undefined;
+      try {
+        context.executor.revertAction(actionId);
+      } catch (error: unknown) {
+        revertError = error instanceof Error ? error.message : String(error);
+      }
+
+      const nextMessages = messagesRef.current.map((message) => ({
+        ...message,
+        parts: message.parts.map((part) => {
+          if (part.type !== "tool-call" || part.change?.actionId !== actionId) {
+            return part;
+          }
+          return {
+            ...part,
+            change: {
+              ...part.change,
+              reverted: revertError === undefined,
+              revertError,
+            },
+          };
+        }),
+      }));
+      messagesRef.current = nextMessages;
+      setMessages(nextMessages);
+      persistCurrentMessages(nextMessages);
+    },
+    [persistCurrentMessages],
+  );
+
+  const isRevertAvailable = useCallback((actionId: string) => {
+    const action = actionContextRef.current?.tracker
+      .getActions()
+      .find((item) => item.id === actionId);
+    return (
+      action != null && !action.reverted && action.details.reversible !== false
+    );
+  }, []);
 
   return {
     messages,
@@ -409,5 +516,7 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
     interrupt,
     approval,
     resolveApproval,
+    revertAction,
+    isRevertAvailable,
   };
 }

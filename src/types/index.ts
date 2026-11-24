@@ -21,6 +21,9 @@ export type MessagePart =
             type: "create_file" | "modify_file" | "delete_file" | "create_folder";
             path: string;
             patch?: string;
+            actionId: string;
+            reverted?: boolean;
+            revertError?: string;
         };
     };
 
