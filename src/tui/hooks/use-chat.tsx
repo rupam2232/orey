@@ -6,8 +6,8 @@ import type { ModeType, Message, MessagePart } from "@/types";
 import { ActionTracker } from "@/ai/action-tracker";
 import { ToolExecutor } from "@/ai/tool-executor";
 import {
+  getExistingSessionActionContext,
   getSessionActionContext,
-  type SessionActionContext,
 } from "@/ai/session-actions";
 import { createAgentTools, createWebTools } from "@/ai/tools";
 import { defaultAgentConfig, type ActionLog } from "@/ai/types";
@@ -108,7 +108,7 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeSessionRef = useRef<SessionData | null>(null);
   const approvalRef = useRef<ApprovalRequest | null>(null);
-  const actionContextRef = useRef<SessionActionContext | null>(null);
+  const actionContext = getExistingSessionActionContext(sessionId);
   const messagesRef = useRef<Message[]>(messages);
   messagesRef.current = messages;
 
@@ -220,7 +220,6 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
         config.tools.allowShellExecution = false;
       }
       const actionContext = getSessionActionContext(sessionId, config);
-      actionContextRef.current = actionContext;
       const { tracker, executor } = actionContext;
 
       const tools = {
@@ -463,14 +462,13 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
 
   const revertAction = useCallback(
     (actionId: string) => {
-      const context = actionContextRef.current;
-      if (!context) {
+      if (!actionContext) {
         return;
       }
 
       let revertError: string | undefined;
       try {
-        context.executor.revertAction(actionId);
+        actionContext.executor.revertAction(actionId);
       } catch (error: unknown) {
         revertError = error instanceof Error ? error.message : String(error);
       }
@@ -495,17 +493,17 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
       setMessages(nextMessages);
       persistCurrentMessages(nextMessages);
     },
-    [persistCurrentMessages],
+    [actionContext, persistCurrentMessages],
   );
 
   const isRevertAvailable = useCallback((actionId: string) => {
-    const action = actionContextRef.current?.tracker
+    const action = actionContext?.tracker
       .getActions()
       .find((item) => item.id === actionId);
     return (
       action != null && !action.reverted && action.details.reversible !== false
     );
-  }, []);
+  }, [actionContext]);
 
   return {
     messages,

@@ -9,6 +9,12 @@ export type SessionActionContext = {
 
 const contexts = new Map<string, SessionActionContext>();
 
+export function getExistingSessionActionContext(
+  sessionId: string,
+): SessionActionContext | undefined {
+  return contexts.get(sessionId);
+}
+
 export function getSessionActionContext(
   sessionId: string,
   config: AgentConfig,
