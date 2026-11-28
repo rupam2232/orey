@@ -2,6 +2,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import Firecrawl from "@mendable/firecrawl-js";
 import type { ActionTracker } from "./action-tracker";
+import type {
+  ToolApprovalDecision,
+  ToolApprovalHandler,
+} from "./tool-approval";
 import type { ToolExecutor } from "./tool-executor";
 import { readConfig } from "@/lib/config";
 
@@ -21,7 +25,10 @@ function clip(s: string, n = 8000): string {
   return s.length > n ? s.slice(0, n) + "\n…[truncated]" : s;
 }
 
-export function createWebTools(tracker: ActionTracker) {
+export function createWebTools(
+  tracker: ActionTracker,
+  requestApproval: ToolApprovalHandler,
+) {
   return {
     web_search: tool({
       description: "Search the web. Returns title/url/snippet list.",
@@ -93,31 +100,45 @@ export function createWebTools(tracker: ActionTracker) {
           .default("GET")
           .describe("HTTP method to use"),
       }),
-      execute: async ({ url, method }) => {
-        if (!readConfig().webSearchEnabled) {
-          throw new Error(
-            "Web search is disabled. Use '/web' command to enable it.",
-          );
-        }
-        const r = await fetch(url, { redirect: "follow", method });
-        const body = await r.text();
-        const out = clip(body, 16_000);
-        tracker.log({
-          type: "code_analysis",
-          path: `fetch:${url}`,
-          details: {
-            after: `HTTP ${r.status}\n\n${out}`,
-            toolName: "fetch_url",
-          },
-          status: "executed",
+      execute: async ({ url, method }, { toolCallId, abortSignal }) => {
+        const decision = await requestApproval({
+          toolName: "fetch_url",
+          toolCallId,
+          url,
+          method,
+          signal: abortSignal,
         });
-        return `HTTP ${r.status}\n\n${out}`;
+        if (!decision.approved) {
+          return "The user rejected this fetch_url request. It was not executed.";
+        }
+
+        try {
+          const r = await fetch(url, {
+            redirect: "follow",
+            method,
+            signal: abortSignal,
+          });
+          const body = await r.text();
+          const out = `HTTP ${r.status}\n\n${clip(body, 16_000)}`;
+          tracker.updateDetails(decision.action.id, { toolResult: out });
+          tracker.updateStatus(decision.action.id, "executed", true);
+          return out;
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          tracker.updateDetails(decision.action.id, { error: message });
+          tracker.updateStatus(decision.action.id, "failed", true);
+          throw error;
+        }
       },
     }),
   };
 }
 
-export function createAgentTools(executor: ToolExecutor) {
+export function createAgentTools(
+  executor: ToolExecutor,
+  requestApproval: ToolApprovalHandler,
+) {
   return {
     read_file: tool({
       description:
@@ -213,11 +234,26 @@ export function createAgentTools(executor: ToolExecutor) {
 
     execute_shell: tool({
       description:
-        "Queue a shell command to run in the workspace after user approval. Use with care.",
+        "Run a shell command in the workspace after the user approves this invocation. Use with care.",
       inputSchema: z.object({
         command: z.string().describe("Single command; runs with shell: true"),
       }),
-      execute: async ({ command }) => executor.queueShell(command),
+      execute: async ({ command }, { toolCallId, abortSignal }) => {
+        if (!executor.shellExecutionAllowed) {
+          throw new Error("Shell execution disabled");
+        }
+        const decision: ToolApprovalDecision = await requestApproval({
+          toolName: "execute_shell",
+          toolCallId,
+          command,
+          cwd: executor.workspacePath,
+          signal: abortSignal,
+        });
+        if (!decision.approved) {
+          return "The user rejected this execute_shell request. It was not executed.";
+        }
+        return executor.executeShell(command, decision.action, abortSignal);
+      },
     }),
 
     list_skills: tool({

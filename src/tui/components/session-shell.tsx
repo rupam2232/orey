@@ -14,6 +14,7 @@ type Props = {
   inputDisabled?: boolean;
   loading?: boolean;
   interruptible?: boolean;
+  inputReplacement?: ReactNode;
 };
 
 export function SessionShell({
@@ -22,6 +23,7 @@ export function SessionShell({
   inputDisabled = false,
   loading = false,
   interruptible = false,
+  inputReplacement,
 }: Props) {
   const { mode } = usePromptConfig();
   const { colors } = useTheme();
@@ -45,7 +47,9 @@ export function SessionShell({
         <box>{cleanChildren}</box>
       </scrollbox>
       <box flexShrink={0}>
-        <TextArea onSubmit={onSubmit} disabled={inputDisabled} />
+        {inputReplacement ?? (
+          <TextArea onSubmit={onSubmit} disabled={inputDisabled} />
+        )}
       </box>
       <box
         width="100%"

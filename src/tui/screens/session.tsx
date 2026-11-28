@@ -14,7 +14,7 @@ import { usePromptConfig } from "../providers/prompt-config";
 import { useToast } from "../providers/toast";
 import { useKeyboardLayer } from "../providers/keyboard-layer";
 import { loadSession, type SessionData } from "@/lib/session-storage";
-// import { ApprovalCard } from "../components/approval-card";
+import { ApprovalCard } from "../components/approval-card";
 
 const initialPromptSchema = z.object({
   message: z.string(),
@@ -85,11 +85,12 @@ function SessionChat({
     abort,
     interrupt,
     error,
-    approval,
-    // resolveApproval,
+    pendingApprovals,
+    resolveToolApproval,
     revertAction,
     isRevertAvailable,
   } = useChat(session.id, initialMessages);
+  const approval = pendingApprovals[0];
   const hasSubmittedInitialPromptRef = useRef(false);
 
   useEffect(() => {
@@ -122,7 +123,17 @@ function SessionChat({
       }}
       loading={status === "submitted" || status === "streaming"}
       interruptible={status === "submitted" || status === "streaming"}
-      inputDisabled={approval != null}
+      inputReplacement={
+        approval ? (
+          <ApprovalCard
+            approval={approval}
+            queuedCount={pendingApprovals.length}
+            onDecision={(approved) =>
+              resolveToolApproval(approval.id, approved)
+            }
+          />
+        ) : undefined
+      }
     >
       {messages.map((msg, i) => (
         <ChatMessage
@@ -134,12 +145,6 @@ function SessionChat({
         />
       ))}
       {error && <ErrorMessage message={error.message} />}
-      {/* {approval && (
-        <ApprovalCard
-          pending={approval.pending}
-          onComplete={(ids) => resolveApproval(ids)}
-        />
-      )} */}
     </SessionShell>
   );
 }

@@ -51,6 +51,12 @@ export class ActionTracker {
     if (userApproved !== undefined) a.userApproved = userApproved;
   }
 
+  updateDetails(id: string, details: Partial<ActionLog["details"]>): void {
+    const action = this.actions.find((x) => x.id === id);
+    if (!action) return;
+    Object.assign(action.details, details);
+  }
+
   markReverted(id: string): ActionLog | undefined {
     const action = this.actions.find((x) => x.id === id);
     if (!action) return undefined;

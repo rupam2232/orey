@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { App } from "./tui/app.tsx";
+import { rejectPendingSessionApprovals } from "./ai/session-actions";
 
 declare const OREY_VERSION: string | undefined;
 const version = typeof OREY_VERSION === "string" ? OREY_VERSION : "dev";
@@ -26,6 +27,7 @@ Options:
   console.error(`Unknown option: ${args[0]}\nRun 'orey --help' for usage.`);
   process.exit(1);
 } else {
+  process.once("exit", rejectPendingSessionApprovals);
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     targetFps: 60,

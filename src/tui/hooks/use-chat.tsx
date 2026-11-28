@@ -3,14 +3,13 @@ import { randomUUID } from "node:crypto";
 import { stepCountIs, streamText } from "ai";
 import { usePromptConfig } from "@/tui/providers/prompt-config";
 import type { ModeType, Message, MessagePart } from "@/types";
-import { ActionTracker } from "@/ai/action-tracker";
-import { ToolExecutor } from "@/ai/tool-executor";
-import {
-  getExistingSessionActionContext,
-  getSessionActionContext,
-} from "@/ai/session-actions";
+import { getSessionActionContext } from "@/ai/session-actions";
 import { createAgentTools, createWebTools } from "@/ai/tools";
-import { defaultAgentConfig, type ActionLog } from "@/ai/types";
+import { defaultAgentConfig } from "@/ai/types";
+import type {
+  PendingToolApproval,
+  ToolApprovalHandler,
+} from "@/ai/tool-approval";
 import {
   loadSession,
   saveSession,
@@ -19,12 +18,6 @@ import {
 import { formatPatch } from "@/utils/diff-view";
 
 export type ChatStatus = "ready" | "submitted" | "streaming" | "error";
-
-export type ApprovalRequest = {
-  tracker: ActionTracker;
-  executor: ToolExecutor;
-  pending: ActionLog[];
-};
 
 type MutationToolName =
   | "create_file"
@@ -39,6 +32,36 @@ function isMutationToolName(name: string): name is MutationToolName {
     name === "delete_file" ||
     name === "create_folder"
   );
+}
+
+function rejectInterruptedApprovals(
+  messages: Message[],
+  activeActionIds: Set<string>,
+): { messages: Message[]; changed: boolean } {
+  let changed = false;
+  const updatedMessages = messages.map((message) => ({
+    ...message,
+    parts: message.parts.map((part) => {
+      if (
+        part.type !== "tool-call" ||
+        part.approval?.status !== "pending" ||
+        activeActionIds.has(part.approval.actionId)
+      ) {
+        return part;
+      }
+
+      changed = true;
+      return {
+        ...part,
+        approval: {
+          ...part.approval,
+          status: "rejected" as const,
+          reason: "Application closed before approval was provided.",
+        },
+      };
+    }),
+  }));
+  return { messages: updatedMessages, changed };
 }
 
 function persistableToolArgs(toolName: string, args: unknown): unknown {
@@ -95,10 +118,20 @@ function convertMessagesForStream(messages: Message[]) {
 }
 
 export function useChat(sessionId: string, initialMessages: Message[] = []) {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [actionContext] = useState(() =>
+    getSessionActionContext(sessionId, defaultAgentConfig()),
+  );
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const activeIds = new Set(
+      actionContext.approvalGate.getPending().map((request) => request.actionId),
+    );
+    return rejectInterruptedApprovals(initialMessages, activeIds).messages;
+  });
   const [status, setStatus] = useState<ChatStatus>("ready");
   const [error, setError] = useState<Error | null>(null);
-  const [approval, setApproval] = useState<ApprovalRequest | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState<PendingToolApproval[]>(
+    () => actionContext.approvalGate.getPending(),
+  );
   const { aiModel, aiModelError } = usePromptConfig();
   const aiModelRef = useRef(aiModel);
   const aiModelErrorRef = useRef(aiModelError);
@@ -107,20 +140,34 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeSessionRef = useRef<SessionData | null>(null);
-  const approvalRef = useRef<ApprovalRequest | null>(null);
-  const actionContext = getExistingSessionActionContext(sessionId);
   const messagesRef = useRef<Message[]>(messages);
   messagesRef.current = messages;
+
+  useEffect(
+    () => actionContext.approvalGate.subscribe(setPendingApprovals),
+    [actionContext],
+  );
 
   useEffect(() => {
     const existing = loadSession(sessionId);
     if (existing) {
       activeSessionRef.current = existing;
+      const activeIds = new Set(
+        actionContext.approvalGate
+          .getPending()
+          .map((request) => request.actionId),
+      );
+      const reconciled = rejectInterruptedApprovals(existing.messages, activeIds);
+      if (reconciled.changed) {
+        existing.messages = reconciled.messages;
+        saveSession(existing);
+      }
       if (existing.messages.length > 0 && messages.length === 0) {
         setMessages(existing.messages);
+        messagesRef.current = existing.messages;
       }
     }
-  }, [sessionId, messages.length]);
+  }, [actionContext, sessionId, messages.length]);
 
   const persistCurrentMessages = useCallback(
     (nextMessages: Message[]) => {
@@ -161,23 +208,6 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
     abort();
   }, [abort]);
 
-  const resolveApproval = useCallback((approvedActionIds: string[]) => {
-    const request = approvalRef.current;
-    if (!request) return;
-
-    approvalRef.current = null;
-    setApproval(null);
-
-    const approvedSet = new Set(approvedActionIds);
-    for (const action of request.pending) {
-      request.tracker.updateStatus(
-        action.id,
-        approvedSet.has(action.id) ? "approved" : "rejected",
-        approvedSet.has(action.id),
-      );
-    }
-  }, []);
-
   const submit = useCallback(
     async (params: { userText: string; mode: ModeType; model: string }) => {
       const { userText, mode, model } = params;
@@ -202,6 +232,7 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
       const updatedMessagesWithUser = [...messagesRef.current, userMessage];
       const nextMessages = [...updatedMessagesWithUser, initialAssistantMessage];
 
+      messagesRef.current = nextMessages;
       setMessages(nextMessages);
       persistCurrentMessages(nextMessages);
       setStatus("streaming");
@@ -221,10 +252,73 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
       }
       const actionContext = getSessionActionContext(sessionId, config);
       const { tracker, executor } = actionContext;
+      setPendingApprovals(actionContext.approvalGate.getPending());
+      let currentAssistantParts: MessagePart[] = [];
+      const approvalStatesByToolCallId = new Map<
+        string,
+        NonNullable<Extract<MessagePart, { type: "tool-call" }>["approval"]>
+      >();
+
+      const updateApprovalMessage = (
+        approvalRequest: PendingToolApproval,
+        approvalStatus: "pending" | "approved" | "rejected",
+        reason?: string,
+      ) => {
+        const approvalState = {
+          actionId: approvalRequest.actionId,
+          status: approvalStatus,
+          reason,
+        };
+        approvalStatesByToolCallId.set(
+          approvalRequest.toolCallId,
+          approvalState,
+        );
+        const target = currentAssistantParts.find(
+          (part) =>
+            part.type === "tool-call" &&
+            part.toolCallId === approvalRequest.toolCallId,
+        );
+        if (target?.type === "tool-call") {
+          target.approval = approvalState;
+        } else {
+          const toolArgs =
+            approvalRequest.toolName === "execute_shell"
+              ? { command: approvalRequest.command }
+              : {
+                  url: approvalRequest.url,
+                  method: approvalRequest.method,
+                };
+          currentAssistantParts.push({
+            type: "tool-call",
+            toolCallId: approvalRequest.toolCallId,
+            toolName: approvalRequest.toolName,
+            args: toolArgs,
+            state: "call",
+            approval: approvalState,
+          });
+        }
+
+        const assistantMessage: Message = {
+          id: assistantMessageId,
+          role: "assistant",
+          parts: [...currentAssistantParts],
+          metadata: { mode, model, updatedAt: new Date().toISOString() },
+        };
+        const nextMessages = [...updatedMessagesWithUser, assistantMessage];
+        messagesRef.current = nextMessages;
+        setMessages(nextMessages);
+        persistCurrentMessages(nextMessages);
+      };
+
+      const requestApproval: ToolApprovalHandler = (input) =>
+        actionContext.approvalGate.request({
+          ...input,
+          onChange: updateApprovalMessage,
+        });
 
       const tools = {
-        ...createAgentTools(executor),
-        ...createWebTools(tracker),
+        ...createAgentTools(executor, requestApproval),
+        ...createWebTools(tracker, requestApproval),
       };
 
       try {
@@ -252,8 +346,6 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
           ),
           abortSignal: controller.signal,
         });
-
-        let currentAssistantParts: MessagePart[] = [];
 
         for await (const part of result.stream) {
           if (controller.signal.aborted) break;
@@ -314,13 +406,24 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
             const args =
               (part as { input?: unknown; args?: unknown }).input ??
               (part as { input?: unknown; args?: unknown }).args;
-            currentAssistantParts.push({
-              type: "tool-call",
-              toolCallId,
-              toolName,
-              args: persistableToolArgs(toolName, args),
-              state: "call",
-            });
+            const existing = currentAssistantParts.find(
+              (item) =>
+                item.type === "tool-call" && item.toolCallId === toolCallId,
+            );
+            const approvalState = approvalStatesByToolCallId.get(toolCallId);
+            if (existing?.type === "tool-call") {
+              existing.args = persistableToolArgs(toolName, args);
+              existing.approval = approvalState;
+            } else {
+              currentAssistantParts.push({
+                type: "tool-call",
+                toolCallId,
+                toolName,
+                args: persistableToolArgs(toolName, args),
+                state: "call",
+                approval: approvalState,
+              });
+            }
           } else if (partType === "tool-result") {
             const toolCallId = (part as { toolCallId: string }).toolCallId;
             const resultOutput =
@@ -361,6 +464,18 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
                 }
               }
             }
+          } else if (partType === "tool-error") {
+            const toolCallId = (part as { toolCallId: string }).toolCallId;
+            const errVal = (part as { error?: unknown }).error;
+            const target = currentAssistantParts.find(
+              (p: MessagePart) =>
+                p.type === "tool-call" && p.toolCallId === toolCallId,
+            );
+            if (target && target.type === "tool-call") {
+              target.state = "output-error";
+              target.errorText =
+                errVal instanceof Error ? errVal.message : String(errVal);
+            }
           } else if (partType === "error") {
             const errVal = (part as { error?: unknown }).error;
             const errText =
@@ -386,17 +501,20 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
             metadata: { mode, model, durationMs },
           };
 
-          setMessages([...updatedMessagesWithUser, updatedAssistantMsg]);
-        }
-
-        // Stage changes for approval if in agent mode
-        if (mode === "agent") {
-          const pending = tracker.getPendingMutations();
-          executor.clearStaging();
-          if (pending.length > 0) {
-            const request: ApprovalRequest = { tracker, executor, pending };
-            approvalRef.current = request;
-            setApproval(request);
+          const nextStreamMessages = [
+            ...updatedMessagesWithUser,
+            updatedAssistantMsg,
+          ];
+          messagesRef.current = nextStreamMessages;
+          setMessages(nextStreamMessages);
+          if (
+            partType === "tool-call" &&
+            (part as { toolCallId: string }).toolCallId &&
+            approvalStatesByToolCallId.has(
+              (part as { toolCallId: string }).toolCallId,
+            )
+          ) {
+            persistCurrentMessages(nextStreamMessages);
           }
         }
 
@@ -415,6 +533,7 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
         };
 
         const finalMessages = [...updatedMessagesWithUser, finalAssistantMsg];
+        messagesRef.current = finalMessages;
         setMessages(finalMessages);
         persistCurrentMessages(finalMessages);
         setStatus("ready");
@@ -451,13 +570,15 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
           ...updatedMessagesWithUser,
           failedAssistantMsg,
         ];
+        messagesRef.current = finalFailedMessages;
         setMessages(finalFailedMessages);
         persistCurrentMessages(finalFailedMessages);
       } finally {
+        executor.clearStaging();
         abortControllerRef.current = null;
       }
     },
-    [persistCurrentMessages],
+    [persistCurrentMessages, sessionId],
   );
 
   const revertAction = useCallback(
@@ -496,6 +617,17 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
     [actionContext, persistCurrentMessages],
   );
 
+  const resolveToolApproval = useCallback(
+    (approvalId: string, approved: boolean) => {
+      actionContext.approvalGate.decide(
+        approvalId,
+        approved,
+        approved ? undefined : "Rejected by user.",
+      );
+    },
+    [actionContext],
+  );
+
   const isRevertAvailable = useCallback((actionId: string) => {
     const action = actionContext?.tracker
       .getActions()
@@ -512,8 +644,8 @@ export function useChat(sessionId: string, initialMessages: Message[] = []) {
     submit,
     abort,
     interrupt,
-    approval,
-    resolveApproval,
+    pendingApprovals,
+    resolveToolApproval,
     revertAction,
     isRevertAvailable,
   };

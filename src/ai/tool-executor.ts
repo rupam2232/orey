@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { homedir } from "node:os";
@@ -12,6 +13,7 @@ type ApplyChangesInput = Pick<ActionLog, "type" | "path"> & {
 export class ToolExecutor {
   private overlay = new Map<string, string>();
   private deleted = new Set<string>();
+  private shellProcesses = new Map<ChildProcess, ActionLog>();
   private readonly norm = (rel: string) =>
     path.posix.normalize(rel.split(path.sep).join("/")).replace(/^\.\//, "");
 
@@ -22,6 +24,14 @@ export class ToolExecutor {
 
   updateConfig(config: AgentConfig): void {
     this.config = config;
+  }
+
+  get workspacePath(): string {
+    return this.config.codebasePath;
+  }
+
+  get shellExecutionAllowed(): boolean {
+    return this.config.tools.allowShellExecution;
   }
 
   private resolveSafe(rel: string): string {
@@ -314,16 +324,88 @@ export class ToolExecutor {
     return summary;
   }
 
-  queueShell(command: string): string {
-    if (!this.config.tools.allowShellExecution)
+  executeShell(
+    command: string,
+    action: ActionLog,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    if (!this.config.tools.allowShellExecution) {
       throw new Error("Shell execution disabled");
-    this.tracker.log({
-      type: "execute_shell",
-      path: "shell",
-      details: { command, toolName: "execute_shell" },
-      status: "pending",
+    }
+    if (signal?.aborted) {
+      const error = new Error("Shell execution interrupted");
+      this.tracker.updateDetails(action.id, { error: error.message });
+      this.tracker.updateStatus(action.id, "failed", true);
+      throw error;
+    }
+
+    const child = spawn(command, {
+      cwd: action.details.cwd ?? this.config.codebasePath,
+      shell: true,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
     });
-    return `Shell queued: ${command}`;
+    this.shellProcesses.set(child, action);
+    const maxOutputLength = 16_000;
+    let stdout = "";
+    let stderr = "";
+    let outputTruncated = false;
+    const capture = (current: string, chunk: Buffer): string => {
+      const remaining = maxOutputLength - current.length;
+      if (remaining <= 0) {
+        outputTruncated = true;
+        return current;
+      }
+      const text = chunk.toString("utf8");
+      if (text.length > remaining) outputTruncated = true;
+      return current + text.slice(0, remaining);
+    };
+
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout = capture(stdout, chunk);
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = capture(stderr, chunk);
+    });
+
+    return new Promise((resolve, reject) => {
+      const onAbort = () => {
+        child.kill();
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+
+      child.once("error", (error) => {
+        this.shellProcesses.delete(child);
+        signal?.removeEventListener("abort", onAbort);
+        this.tracker.updateDetails(action.id, { error: error.message });
+        this.tracker.updateStatus(action.id, "failed", true);
+        reject(error);
+      });
+
+      child.once("close", (code, terminationSignal) => {
+        this.shellProcesses.delete(child);
+        signal?.removeEventListener("abort", onAbort);
+        if (signal?.aborted) {
+          const error = new Error("Shell execution interrupted");
+          this.tracker.updateDetails(action.id, { error: error.message });
+          this.tracker.updateStatus(action.id, "failed", true);
+          reject(error);
+          return;
+        }
+
+        const output = [
+          `Exit code: ${code ?? "unknown"}${terminationSignal ? ` (${terminationSignal})` : ""}`,
+          `stdout:\n${stdout || "(empty)"}`,
+          `stderr:\n${stderr || "(empty)"}`,
+          outputTruncated ? "[output truncated]" : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        this.tracker.updateDetails(action.id, { toolResult: output });
+        this.tracker.updateStatus(action.id, "executed", true);
+        resolve(output);
+      });
+    });
   }
 
   skillRoots(): string[] {
@@ -409,6 +491,17 @@ export class ToolExecutor {
   clearStaging(): void {
     this.overlay.clear();
     this.deleted.clear();
+  }
+
+  shutdown(): void {
+    for (const [child, action] of this.shellProcesses) {
+      this.tracker.updateDetails(action.id, {
+        error: "Application closed while the approved command was running.",
+      });
+      this.tracker.updateStatus(action.id, "failed", true);
+      if (child.exitCode === null && !child.killed) child.kill();
+    }
+    this.shellProcesses.clear();
   }
 
   revertAction(actionId: string): string {

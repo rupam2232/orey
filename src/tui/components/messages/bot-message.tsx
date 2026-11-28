@@ -240,8 +240,16 @@ export function BotMessage({
                     <em>{formatToolName(toolName)}</em>:{" "}
                     <span attributes={part.state === "call" ? TextAttributes.BLINK : undefined}>
                       {formatToolArgs(part)}
-                      {part.state === "call" ? "..." : ""}
+                      {part.state === "call" &&
+                      part.approval?.status !== "rejected"
+                        ? "..."
+                        : ""}
                     </span>
+                    {part.approval?.status === "approved"
+                      ? " (approved)"
+                      : part.approval?.status === "rejected"
+                        ? ` (rejected${part.approval.reason ? `: ${part.approval.reason}` : ""})`
+                        : ""}
                     {part.state === "output-error"
                       ? ` (failed: ${part.errorText})`
                       : ""}

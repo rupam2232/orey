@@ -4,14 +4,16 @@ export type ActionType =
   | "delete_file"
   | "create_folder"
   | "code_analysis"
-  | "execute_shell";
+  | "execute_shell"
+  | "fetch_url";
 
 export type ActionStatus =
   | "pending"
   | "executed"
   | "approved"
   | "rejected"
-  | "reverted";
+  | "reverted"
+  | "failed";
 
 export interface ActionLog {
   id: string;
@@ -25,6 +27,9 @@ export interface ActionLog {
     toolResult?: string;
     error?: string;
     command?: string;
+    cwd?: string;
+    url?: string;
+    method?: string;
     reversible?: boolean;
   };
   status: ActionStatus;
